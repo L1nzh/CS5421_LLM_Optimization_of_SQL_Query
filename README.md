@@ -84,6 +84,10 @@ Optional flags:
 pytest
 ```
 
+## Design Docs
+
+- Detailed validator flow and strategy behavior: [docs/validation_flow.md](/Users/dex/Documents/python-workspace/llm_query_optimizer/docs/validation_flow.md)
+
 ## Extending To Other Databases
 
 Implement `db.adapter.DatabaseAdapter` for the target engine and pass it into `QueryExecutor`. The validator, normalizer, comparator, and pipeline are database-agnostic.

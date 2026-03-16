@@ -1,657 +1,264 @@
-Given your **LLM SQL optimizer research project**, the **result set validation layer** is actually a **critical correctness gate** before performance evaluation (e.g., latency, cost, query plan comparison). In academic benchmarking systems (including those used with TPC-DS), this stage is often called **semantic equivalence verification**.
+# Validation Flow And Comparison Strategies
 
-Your validator must answer one question:
+This document explains how the result-set validator works in the current codebase, with special focus on the `hash` comparison strategy for large query outputs such as TPC-DS.
 
-> **Does the optimized SQL produce the same logical result as the original query?**
+## End-To-End Flow
 
-But there are several complexities:
+The validator follows this pipeline:
 
-* row ordering differences
-* floating-point precision differences
-* duplicates vs distinct
-* NULL handling
-* LIMIT / ORDER BY effects
-* non-deterministic functions (e.g., `random()`, `now()`)
-
-Therefore the validator must be **deterministic, database-agnostic, and extensible**.
-
-Below is a **research-grade architecture** suitable for your project.
-
----
-
-# 1. High-Level Validation Flow
-
-The validation pipeline should look like this:
-
-```
-                Raw Query
-                    │
-                    ▼
-           Execute Baseline Query
-                    │
-                    ▼
-              Baseline Result
-                    │
-                    ▼
-     ┌────────────────────────────────┐
-     │  Optimized Query Candidates     │
-     │   Q1, Q2, Q3, ... QN            │
-     └────────────────────────────────┘
-            │      │       │
-            ▼      ▼       ▼
-
-       Execute Query Candidates
-            │      │       │
-            ▼      ▼       ▼
-
-        Resultset Comparator
-              │
-              ▼
-       Semantic Equivalence Check
-              │
-              ▼
-   ┌───────────────────────────────┐
-   │ Valid Queries (Correct SQL)   │
-   │ Invalid Queries (Rejected)    │
-   └───────────────────────────────┘
-              │
-              ▼
-       Pass to Evaluation Stage
-       (Latency / Plan / Cost)
+```text
+Raw Query
+  -> execute baseline
+  -> normalize baseline result
+  -> for each candidate:
+       execute candidate
+       normalize candidate result
+       compare against baseline
+  -> emit ValidationReport
 ```
 
-Key stages:
+In code:
 
-1. **Baseline execution**
-2. **Candidate execution**
-3. **Result normalization**
-4. **Result comparison**
-5. **Correctness classification**
+- Query execution starts in `execution/query_executor.py`
+- Database access is abstracted in `db/adapter.py`
+- PostgreSQL streaming support lives in `db/postgres_adapter.py`
+- Normalization lives in `validator/result_normalizer.py`
+- Comparison lives in `validator/result_comparator.py`
+- Streaming hash logic lives in `validator/result_hasher.py`
+- Orchestration lives in `validator/validation_pipeline.py`
 
----
+## Normalization
 
-# 2. Core Design Principles
+Before any comparison, values are normalized into a deterministic representation.
 
-For this module we must enforce:
+The normalizer handles:
 
-### 1️⃣ Database abstraction
+- `float`: rounded using the configured precision derived from `float_tolerance`
+- `Decimal`: quantized to the same effective precision
+- `NULL`: kept as `None`
+- `datetime`, `date`, `time`: converted to ISO strings
+- `bytes`: decoded using the configured encoding
+- `dict` and JSON-like structures: serialized into canonical JSON
+- `str`: newline-normalized, optionally trimmed
+- nested sequences: normalized recursively
 
-Your project may later test:
+Column names are also normalized before comparison.
 
-* PostgreSQL
-* DuckDB
-* SQLite
-* MySQL
+This matters because SQL-equivalent queries may still differ in raw driver output formatting.
 
-So **never couple logic to PostgreSQL driver**.
+## Comparison Strategies
 
-Use an **Adapter Pattern**.
+### `exact_ordered`
 
----
+Use this when row order is part of the expected semantics.
 
-### 2️⃣ Deterministic comparison
+Behavior:
 
-We normalize results before comparing.
+- Columns must match exactly
+- Rows must match exactly
+- Row order must be identical
 
-Examples:
+Good fit:
 
-| Problem              | Solution        |
-| -------------------- | --------------- |
-| Row order difference | Sort rows       |
-| Float precision      | Round           |
-| Column name mismatch | Use index       |
-| NULL vs None         | Normalize       |
-| Duplicate rows       | Count frequency |
+- queries with meaningful `ORDER BY`
+- window queries where order is intentionally part of the output contract
 
----
+Tradeoff:
 
-### 3️⃣ Memory safety
+- strict but memory-heavy, because both full result sets are materialized
 
-Large query results must not crash memory.
+### `exact_unordered`
+
+Use this when row order is not semantically important.
+
+Behavior:
+
+- Columns must match exactly
+- Rows are normalized and then sorted into a deterministic order
+- Sorted baseline rows are compared to sorted candidate rows
+
+Good fit:
+
+- ordinary `SELECT` queries where row order is unspecified
+
+Tradeoff:
+
+- exact comparison, but still materializes and sorts both full result sets in memory
+
+### `multiset`
+
+Use this when duplicate row frequency matters and order does not.
+
+Behavior:
+
+- Columns must match exactly
+- Rows are counted using `collections.Counter`
+- Row value and row frequency must both match
+
+Good fit:
+
+- queries that may return duplicates and where duplicate counts are semantically meaningful
+
+Tradeoff:
+
+- exact duplicate-sensitive comparison, but still memory-heavy for very large outputs
+
+### `hash`
+
+Use this when result sets are too large to compare comfortably in memory and you want a compact fingerprint instead.
+
+Behavior:
+
+- Columns are normalized first
+- Rows are streamed from the database in batches
+- Each row is normalized before hashing
+- The validator computes a compact digest and compares digests instead of storing all rows
+
+Good fit:
+
+- TPC-DS-scale result sets
+- large benchmark runs where memory pressure matters
+
+Tradeoff:
+
+- far more memory efficient
+- collision-resistant, but not mathematically collision-free
+
+## How Streaming Hash Comparison Works
+
+### 1. Streaming rows from the adapter
+
+For PostgreSQL, `db/postgres_adapter.py` uses `cursor.fetchmany(batch_size)` to avoid loading the entire result set at once.
+
+Conceptually:
+
+```text
+execute query
+open cursor
+fetch batch of rows
+yield rows one by one
+repeat until exhausted
+close cursor
+```
+
+The batch size is controlled by `stream_batch_size`.
+
+### 2. Normalizing each row
+
+Every streamed row is passed through the same `ResultNormalizer` logic used by the non-hash strategies.
+
+That means the hash path still respects:
+
+- float tolerance
+- decimal precision
+- string normalization
+- datetime normalization
+- bytes decoding
+- JSON canonicalization
+
+So the digest represents the normalized result, not the raw driver payload.
+
+### 3. Building the digest
+
+There are two hash modes, controlled by `preserve_row_order`.
+
+#### Ordered hash mode
+
+If `preserve_row_order=True`:
+
+- normalize each row
+- serialize it deterministically
+- append it into a rolling SHA-256 digest
+- include normalized columns and row count in the final payload
+
+This behaves like an ordered fingerprint of the full result set.
+
+Conceptually:
+
+```text
+digest = sha256()
+for row in rows:
+    digest.update(serialize(normalize(row)))
+```
+
+If the same rows appear in a different order, the digest changes.
+
+#### Unordered hash mode
+
+If `preserve_row_order=False`:
+
+- normalize each row
+- hash each normalized row individually
+- combine the row hashes using order-insensitive aggregates
+
+The current implementation uses:
+
+- sum of row hashes
+- xor of row hashes
+- sum of squared row hashes
+- row count
+
+Those aggregates are then hashed again into the final digest.
+
+Conceptually:
+
+```text
+for row in rows:
+    h = sha256(serialize(normalize(row)))
+    sum_hash += h
+    xor_hash ^= h
+    square_sum += h*h
+```
+
+This gives an order-insensitive multiset-style fingerprint:
+
+- reordering rows does not change the digest
+- changing row values does change the digest
+- duplicate rows affect the aggregates, so frequency matters
+
+### 4. Comparing baseline vs candidate
+
+The hash comparator checks:
+
+1. normalized columns
+2. row count
+3. final digest
+
+If all three match, the candidate is marked equivalent.
+
+## Why Hashing Helps For TPC-DS
+
+TPC-DS queries can return very large result sets, and exact in-memory comparison becomes expensive because it requires:
+
+- storing all baseline rows
+- storing all candidate rows
+- often sorting or counting them
+
+The streaming hash strategy reduces memory usage because it only keeps:
+
+- the current batch or row
+- a few running aggregate values
+- the final digest
+
+So memory stays roughly constant even when row count grows very large.
+
+## Important Limitation
+
+Hash comparison is a strong fingerprint, not a proof of equivalence.
+
+That means:
+
+- it is deterministic
+- it is highly collision-resistant
+- but it is not impossible for two different results to produce the same digest
+
+For most benchmark validation workflows, this is a practical tradeoff. If you later need exact unordered comparison at very large scale, the next step would be an external-sort or disk-backed comparison strategy.
+
+## Strategy Selection Guidance
 
 Use:
 
-* streaming
-* hashing
-* chunk comparison
-
----
-
-### 4️⃣ Multiple comparison strategies
-
-Different queries require different comparison types:
-
-| Query Type      | Strategy          |
-| --------------- | ----------------- |
-| SELECT          | result equality   |
-| SELECT DISTINCT | set equality      |
-| Aggregation     | tolerance compare |
-| ORDER BY        | strict equality   |
-
----
-
-# 3. Proposed Project Structure
-
-Here is the **recommended project layout**.
-
-```
-llm_sql_optimizer/
-│
-├── config/
-│   └── settings.py
-│
-├── db/
-│   ├── database.py
-│   ├── adapter.py
-│   ├── postgres_adapter.py
-│   └── connection_pool.py
-│
-├── execution/
-│   ├── query_executor.py
-│   └── execution_result.py
-│
-├── validator/
-│   ├── result_validator.py
-│   ├── result_normalizer.py
-│   ├── result_comparator.py
-│   └── comparison_strategies.py
-│
-├── models/
-│   ├── query_candidate.py
-│   └── validation_result.py
-│
-├── utils/
-│   ├── dataframe_utils.py
-│   └── hashing.py
-│
-├── pipeline/
-│   └── validation_pipeline.py
-│
-└── main.py
-```
-
----
-
-# 4. Core Components
-
-We divide the system into **5 subsystems**.
-
----
-
-# 4.1 Database Abstraction Layer
-
-Goal:
-
-```
-LLM Optimizer
-     │
-     ▼
- Query Executor
-     │
-     ▼
- Database Adapter
-     │
-     ▼
- PostgreSQL / other DB
-```
-
-### Interface
-
-```python
-class DatabaseAdapter(ABC):
-
-    @abstractmethod
-    def execute_query(self, query: str) -> QueryExecutionResult:
-        pass
-
-    @abstractmethod
-    def get_schema(self):
-        pass
-
-    @abstractmethod
-    def close(self):
-        pass
-```
-
-Concrete:
-
-```
-PostgresAdapter(DatabaseAdapter)
-```
-
-Internally uses:
-
-```
-psycopg2 / asyncpg
-```
-
----
-
-# 4.2 Query Execution Layer
-
-Responsible for:
-
-* executing SQL
-* capturing errors
-* capturing runtime
-* returning structured results
-
-Output object:
-
-```
-QueryExecutionResult
-```
-
-Example:
-
-```python
-@dataclass
-class QueryExecutionResult:
-
-    columns: list[str]
-    rows: list[tuple]
-
-    execution_time: float
-
-    success: bool
-    error_message: Optional[str]
-```
-
----
-
-# 4.3 Result Normalization Layer
-
-Before comparison, normalize result sets.
-
-Normalization steps:
-
-```
-Raw result
-   │
-   ▼
-Convert to dataframe
-   │
-   ▼
-Normalize values
-   │
-   ▼
-Sort rows
-   │
-   ▼
-Standardized dataframe
-```
-
-Normalization rules:
-
-| Rule                    | Example            |
-| ----------------------- | ------------------ |
-| convert Decimal → float | PostgreSQL numeric |
-| round float             | 1e-6               |
-| normalize NULL          | None               |
-| trim strings            | optional           |
-| sort rows               | deterministic      |
-
----
-
-# 4.4 Result Comparator
-
-The comparator determines **semantic equality**.
-
-Three strategies:
-
-### Strategy 1 — Exact equality
-
-```
-DataFrame.equals()
-```
-
-Used for:
-
-```
-SELECT
-```
-
----
-
-### Strategy 2 — Set equality
-
-```
-multiset comparison
-```
-
-Handles duplicates.
-
-Example:
-
-```
-SELECT DISTINCT
-```
-
----
-
-### Strategy 3 — Floating tolerance
-
-Use:
-
-```
-abs(a-b) < epsilon
-```
-
-Useful for:
-
-```
-AVG
-SUM
-FLOAT operations
-```
-
----
-
-# 4.5 Result Validator
-
-This is the **main component**.
-
-Inputs:
-
-```
-raw_query
-optimized_queries[]
-```
-
-Output:
-
-```
-validation_result
-```
-
-Example output:
-
-```
-QueryCandidateResult:
-
-query: ...
-valid: True
-reason: None
-execution_time: 0.23
-```
-
----
-
-# 5. Validation Pipeline
-
-Main orchestrator:
-
-```
-ValidationPipeline
-```
-
-Flow:
-
-```
-1 run baseline query
-2 normalize baseline result
-
-3 for each optimized query
-      execute query
-      normalize result
-      compare with baseline
-
-4 classify query
-```
-
----
-
-### Pipeline pseudocode
-
-```python
-baseline = executor.execute(raw_query)
-
-baseline_df = normalizer.normalize(baseline)
-
-for candidate in optimized_queries:
-
-    result = executor.execute(candidate)
-
-    if not result.success:
-        mark_invalid()
-
-    candidate_df = normalizer.normalize(result)
-
-    equal = comparator.compare(
-        baseline_df,
-        candidate_df
-    )
-
-    if equal:
-        mark_valid()
-    else:
-        mark_invalid()
-```
-
----
-
-# 6. Handling Edge Cases
-
-Your validator must detect **dangerous SQL rewrites**.
-
-Examples:
-
----
-
-### Case 1 — Missing ORDER BY
-
-Raw:
-
-```
-SELECT * FROM orders ORDER BY created_at
-```
-
-Optimized:
-
-```
-SELECT * FROM orders
-```
-
-Results same but order different.
-
-Solution:
-
-```
-Ignore row order unless ORDER BY exists
-```
-
----
-
-### Case 2 — LIMIT pushdown
-
-Raw:
-
-```
-SELECT * FROM table LIMIT 10
-```
-
-Optimized incorrectly modifies.
-
-Solution:
-
-```
-Strict comparison
-```
-
----
-
-### Case 3 — Floating aggregation
-
-```
-AVG(price)
-```
-
-Use tolerance:
-
-```
-1e-6
-```
-
----
-
-### Case 4 — NULL comparison
-
-SQL:
-
-```
-NULL != NULL
-```
-
-But validator must treat them as equal.
-
----
-
-# 7. Result Validation Output
-
-Final output format:
-
-```python
-@dataclass
-class ValidationResult:
-
-    raw_query: str
-
-    baseline_execution_time: float
-
-    candidates: list[CandidateValidationResult]
-```
-
-Candidate result:
-
-```python
-@dataclass
-class CandidateValidationResult:
-
-    query: str
-
-    is_valid: bool
-
-    reason: Optional[str]
-
-    execution_time: float
-```
-
----
-
-# 8. Example Output
-
-Example JSON:
-
-```json
-{
-  "raw_query": "...",
-  "baseline_time": 0.42,
-  "candidates": [
-    {
-      "query": "SELECT ...",
-      "valid": true,
-      "execution_time": 0.21
-    },
-    {
-      "query": "SELECT ...",
-      "valid": false,
-      "reason": "Result mismatch"
-    }
-  ]
-}
-```
-
----
-
-# 9. Performance Optimization (Important)
-
-When queries return **millions of rows**, comparison must avoid full memory load.
-
-Techniques:
-
-### Row hashing
-
-```
-hash(row)
-```
-
-Compare hash frequency.
-
----
-
-### Streaming compare
-
-Compare chunks:
-
-```
-fetchmany(1000)
-```
-
----
-
-### Aggregated checksum
-
-```
-SUM(hash(row))
-COUNT(*)
-```
-
----
-
-This is exactly how large benchmark validators work.
-
----
-
-# 10. Suggested Python Libraries
-
-| Library               | Purpose           |
-| --------------------- | ----------------- |
-| psycopg2 / asyncpg    | PostgreSQL driver |
-| pandas                | result comparison |
-| dataclasses           | structured models |
-| sqlalchemy (optional) | abstraction       |
-
----
-
-# 11. Integration with Your LLM Optimizer
-
-Your full optimizer pipeline should look like:
-
-```
-User Query
-    │
-    ▼
-Prompt Engineering
-    │
-    ▼
-LLM Generates N Queries
-    │
-    ▼
-Result Validation  ← (this module)
-    │
-    ▼
-Valid Queries Only
-    │
-    ▼
-Performance Evaluation
-    │
-    ▼
-Best Query Selection
-```
-
----
-
-# 12. Next Step
-
-If you want, I can now provide the **full Python implementation**, including:
-
-* Database adapter abstraction
-* PostgreSQL adapter
-* Query executor
-* Result normalizer
-* Result comparator
-* Validation pipeline
-* Large result set hashing strategy
-* Complete runnable code (~600–800 lines)
-
-This will be **research-grade and ready for your project.**
+- `exact_ordered` when order matters
+- `exact_unordered` when order does not matter and results are manageable in memory
+- `multiset` when duplicate counts matter and results are manageable in memory
+- `hash` when results are large and you need bounded memory
