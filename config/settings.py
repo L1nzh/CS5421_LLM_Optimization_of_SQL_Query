@@ -12,6 +12,7 @@ class ValidationSettings:
     comparison_strategy: ComparisonStrategy = ComparisonStrategy.EXACT_UNORDERED
     float_tolerance: float = 1e-6
     preserve_row_order: bool = False
+    stream_batch_size: int = 10_000
     trim_strings: bool = False
     normalize_column_names: bool = False
     datetime_format: str = "%Y-%m-%dT%H:%M:%S.%f%z"

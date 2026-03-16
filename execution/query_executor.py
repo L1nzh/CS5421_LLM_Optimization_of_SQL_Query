@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from db.adapter import DatabaseAdapter
-from models import QueryExecutionResult
+from models import QueryExecutionResult, QueryStreamResult
 
 
 class QueryExecutor:
@@ -12,3 +12,6 @@ class QueryExecutor:
 
     def execute(self, query: str) -> QueryExecutionResult:
         return self._adapter.execute_query(query)
+
+    def stream(self, query: str, batch_size: int = 10_000) -> QueryStreamResult:
+        return self._adapter.stream_query(query, batch_size=batch_size)

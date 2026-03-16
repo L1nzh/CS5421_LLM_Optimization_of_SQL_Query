@@ -16,14 +16,17 @@ class ResultNormalizer:
         self._settings = settings
 
     def normalize(self, result: QueryExecutionResult) -> NormalizedResult:
-        columns = tuple(self._normalize_column(column) for column in result.columns)
-        rows = tuple(
-            tuple(self._normalize_value(value) for value in row)
-            for row in result.rows
-        )
+        columns = self.normalize_columns(result.columns)
+        rows = tuple(self.normalize_row(row) for row in result.rows)
         if not self._settings.preserve_row_order:
             rows = tuple(sorted(rows, key=self._row_sort_key))
         return NormalizedResult(columns=columns, rows=rows)
+
+    def normalize_columns(self, columns: list[str] | tuple[str, ...]) -> tuple[str, ...]:
+        return tuple(self._normalize_column(column) for column in columns)
+
+    def normalize_row(self, row: tuple[Any, ...]) -> tuple[Any, ...]:
+        return tuple(self._normalize_value(value) for value in row)
 
     def _normalize_column(self, column: str) -> str:
         normalized = column.strip() if self._settings.trim_strings else column

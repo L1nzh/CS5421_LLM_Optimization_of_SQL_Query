@@ -43,6 +43,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Trim leading and trailing whitespace in string values and column names.",
     )
+    parser.add_argument(
+        "--stream-batch-size",
+        type=int,
+        default=10_000,
+        help="Batch size for streaming rows when using hash comparison.",
+    )
     return parser
 
 
@@ -54,6 +60,7 @@ def main() -> int:
         comparison_strategy=ComparisonStrategy(args.comparison_strategy),
         preserve_row_order=args.ordered,
         float_tolerance=args.float_tolerance,
+        stream_batch_size=args.stream_batch_size,
         trim_strings=args.trim_strings,
     )
 

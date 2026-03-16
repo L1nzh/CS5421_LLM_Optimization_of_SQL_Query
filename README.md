@@ -1,8 +1,8 @@
 # LLM SQL Validator
 
-`llm_sql_validator` is a result-set validation subsystem for SQL optimization research. It executes a baseline query and one or more candidate optimized queries, normalizes their outputs, and determines whether each candidate is semantically equivalent to the baseline.
+This project provides a result-set validation subsystem for SQL optimization research. It executes a baseline query and one or more candidate optimized queries, normalizes their outputs, and determines whether each candidate is semantically equivalent to the baseline.
 
-The implementation is designed for PostgreSQL testing today while keeping the execution layer abstract enough to support other engines later.
+The implementation is designed for PostgreSQL testing today while keeping shared infrastructure such as `db`, `execution`, `models`, and `config` reusable across the wider project.
 
 ## Features
 
@@ -21,14 +21,13 @@ The implementation is designed for PostgreSQL testing today while keeping the ex
 ## Project Layout
 
 ```text
-llm_sql_validator/
-├── config/
-├── db/
-├── execution/
-├── models/
-├── utils/
-├── validator/
-└── cli.py
+cli/
+config/
+db/
+execution/
+models/
+utils/
+validator/
 tests/
 ```
 
@@ -43,7 +42,7 @@ pip install -e .[dev]
 ## CLI Usage
 
 ```bash
-python -m llm_sql_validator.cli \
+python -m cli.validator_cli \
   --dsn "postgres://user:pass@localhost/dbname" \
   --raw-query "SELECT id, name FROM users" \
   --candidate-query "SELECT id, name FROM users ORDER BY id" \
@@ -55,6 +54,7 @@ Optional flags:
 - `--comparison-strategy exact_ordered|exact_unordered|multiset|hash`
 - `--ordered`
 - `--float-tolerance 1e-6`
+- `--stream-batch-size 10000`
 - `--trim-strings`
 
 ## Example Report
@@ -86,11 +86,12 @@ pytest
 
 ## Extending To Other Databases
 
-Implement `llm_sql_validator.db.adapter.DatabaseAdapter` for the target engine and pass it into `QueryExecutor`. The validator, normalizer, comparator, and pipeline are database-agnostic.
+Implement `db.adapter.DatabaseAdapter` for the target engine and pass it into `QueryExecutor`. The validator, normalizer, comparator, and pipeline are database-agnostic.
 
 ## Notes
 
 - Column structure is validated before row comparison.
-- `hash` compares SHA-256 fingerprints of normalized columns and rows.
+- `hash` streams rows in batches and computes the fingerprint incrementally, which avoids materializing the full result set in memory.
+- When `preserve_row_order=False`, `hash` uses an order-insensitive multiset fingerprint over normalized rows. This is intended for large benchmark result sets such as TPC-DS, but like any hash-based equivalence check it is collision-resistant rather than mathematically collision-free.
 - Candidate query failures return `is_valid = false` with reason `Candidate execution failed`.
 - Baseline query failures return a report with `baseline_error_message` and mark all candidates invalid.

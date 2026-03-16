@@ -19,10 +19,10 @@ dev = [
 ]
 
 [project.scripts]
-llm-sql-validator = "llm_sql_validator.cli:main"
+llm-sql-validator = "cli.validator_cli:main"
 
 [tool.setuptools.packages.find]
-include = ["llm_sql_validator*"]
+include = ["cli", "config", "db", "execution", "models", "utils", "validator"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

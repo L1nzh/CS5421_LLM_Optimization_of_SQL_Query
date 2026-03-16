@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 
 @dataclass(slots=True)
@@ -14,10 +15,27 @@ class QueryExecutionResult:
     error_message: Optional[str] = None
 
 
+@dataclass(slots=True)
+class QueryStreamResult:
+    query: str
+    success: bool
+    columns: list[str]
+    rows: Iterable[tuple[Any, ...]]
+    error_message: Optional[str] = None
+    close: Callable[[], None] = lambda: None
+
+
 @dataclass(slots=True, frozen=True)
 class NormalizedResult:
     columns: tuple[str, ...]
     rows: tuple[tuple[Any, ...], ...]
+
+
+@dataclass(slots=True, frozen=True)
+class HashedResult:
+    columns: tuple[str, ...]
+    row_count: int
+    digest: str
 
 
 @dataclass(slots=True)
