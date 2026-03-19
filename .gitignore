@@ -1,3 +1,12 @@
+.DS_Store
+.idea/
+.pytest_cache/
+.coverage
+htmlcov/
 .venv/
-.trae/
-llm_arch_proposal.md
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
