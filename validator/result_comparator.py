@@ -36,7 +36,7 @@ class ResultComparator:
         if baseline.row_count != candidate.row_count:
             return False, "Row count mismatch"
         matches = baseline.digest == candidate.digest
-        return matches, "Equivalent" if matches else f"Hash mismatch, baseline digest: {baseline.digest}, candidate digest: {candidate.digest}"
+        return matches, "Equivalent" if matches else "Hash mismatch"
 
     @staticmethod
     def _sort_rows(rows: tuple[tuple[object, ...], ...]) -> list[tuple[object, ...]]:

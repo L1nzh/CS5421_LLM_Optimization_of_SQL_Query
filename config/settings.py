@@ -7,7 +7,7 @@ from typing import Optional
 from validator.comparison_strategy import ComparisonStrategy
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(frozen=True)
 class ValidationSettings:
     comparison_strategy: ComparisonStrategy = ComparisonStrategy.EXACT_UNORDERED
     float_tolerance: float = 1e-6

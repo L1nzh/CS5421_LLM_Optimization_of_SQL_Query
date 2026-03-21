@@ -5,7 +5,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Optional
 
 
-@dataclass(slots=True)
+@dataclass
 class QueryExecutionResult:
     query: str
     success: bool
@@ -15,7 +15,7 @@ class QueryExecutionResult:
     error_message: Optional[str] = None
 
 
-@dataclass(slots=True)
+@dataclass
 class QueryStreamResult:
     query: str
     success: bool
@@ -25,20 +25,20 @@ class QueryStreamResult:
     close: Callable[[], None] = lambda: None
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(frozen=True)
 class NormalizedResult:
     columns: tuple[str, ...]
     rows: tuple[tuple[Any, ...], ...]
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(frozen=True)
 class HashedResult:
     columns: tuple[str, ...]
     row_count: int
     digest: str
 
 
-@dataclass(slots=True)
+@dataclass
 class CandidateValidationResult:
     query: str
     is_valid: bool
@@ -47,7 +47,7 @@ class CandidateValidationResult:
     error_message: Optional[str] = None
 
 
-@dataclass(slots=True)
+@dataclass
 class ValidationReport:
     raw_query: str
     baseline_execution_time_ms: float
