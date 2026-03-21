@@ -1,0 +1,20 @@
+结果概览（TPC-DS SF=1，9 条 query，PostgreSQL，repeat=3 取 median，timeout=300s）
+
+success
+- 在采样 9 条 query（q1, q2, q3, q6, q7, q8, q9, q10, q12） 上，pro 的整体表现最强：成功率 100%（9/9），且在可计算 speedup 的 9 条里 全部优于 baseline （9/9），median speedup= 1.240 ，说明 pro 改写整体更稳定、收益更一致。
+- lite 的成功率高（9/9），但收益更保守：median speedup= 1.069 ，仅 7/9优于 baseline，说明它更倾向于做“安全的小改动”，提速幅度有限且并非总能带来收益。
+
+speedup
+- mini 的 median speedup= 1.115 （在成功样本上看起来不差），但成功率只有 8/9，体现出更高的不稳定性：它偶尔能给出不错的提速，但更容易生成不可执行 SQL 或请求超时，从工程角度整体可靠性不如 pro/lite。
+失败样例的含义（为什么会失败）
+
+error sql analysis
+- q5 上出现了列名错误/类型不匹配（例如引用不存在列、join 条件类型不一致），说明小模型更容易产生 schema/类型层面的“幻觉式改写”；这类错误会直接导致无法执行，属于硬失败。
+- mini 还出现了请求超时，说明在相同超时设置下，小模型并不一定更快、更稳定（可能与平台侧排队、生成长度等有关）。
+
+score = median_speedup × success_rate
+- 在这 9 条上，pro 与 lite 都是 9/9 成功，mini 是 8/9 成功。
+- 若只看“成功样本的 median speedup”，mini（1.115）会略高于 lite（1.072）；但考虑成功率后，用 score = median_speedup × success_rate 作为简化的“收益×可靠性”指标，排序变为 pro（1.240）> lite（1.072）> mini（0.991） ，与“pro>lite>mini”的预期一致，且更符合工程落地对稳定性的要求。
+
+结论
+- 在本实验设置下，参数更大的 pro 模型在“可执行性 + 稳定提速”上明显优于 lite/mini；lite 更稳定但收益偏保守；mini 可能带来中等提速但失败率更高，导致综合收益不如 lite。

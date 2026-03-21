@@ -3,6 +3,7 @@
 .pytest_cache/
 .coverage
 htmlcov/
+.trae/
 .venv/
 venv/
 __pycache__/
@@ -10,3 +11,15 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+
+# TPC-DS generated artifacts
+datasets/tpcds/
+workloads/tpcds/
+
+# Benchmark outputs
+benchmark/results/
+benchmark/postgres/prompt_reasoning_report.md
+benchmark/postgres/report.md
+
+# TPC-DS tools build outputs
+third_party/
