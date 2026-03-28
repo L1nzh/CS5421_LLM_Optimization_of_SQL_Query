@@ -9,6 +9,7 @@ description = "Semantic result-set validator for LLM-generated SQL optimizations
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "openai>=1.0.0",
     "psycopg[binary]>=3.1,<4.0",
 ]
 
@@ -20,9 +21,10 @@ dev = [
 
 [project.scripts]
 llm-sql-validator = "cli.validator_cli:main"
+llm-sql-pipeline = "cli.optimization_pipeline_cli:main"
 
 [tool.setuptools.packages.find]
-include = ["cli", "config", "db", "execution", "models", "utils", "validator"]
+include = ["cli", "config", "db", "execution", "models", "utils", "validator", "pipeline", "layer1", "layer2", "layer3", "layer4", "layer5", "layer6", "layer7", "layer8"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,67 @@
+from __future__ import annotations
+
+from dataclasses import replace
+
+from models import ValidationReport
+from pipeline.models import BenchmarkReport, NormalizedCandidate, RankedCandidate
+
+
+class SpeedupRankingLayer:
+    """Layer 7: ranks candidates by validation status and benchmark score."""
+
+    def rank(
+        self,
+        normalized_candidates: list[NormalizedCandidate],
+        validation_report: ValidationReport,
+        benchmark_report: BenchmarkReport,
+    ) -> list[RankedCandidate]:
+        benchmark_by_id = {result.candidate_id: result for result in benchmark_report.candidate_results}
+
+        ranked: list[RankedCandidate] = []
+        for candidate, validation_result in zip(normalized_candidates, validation_report.results):
+            benchmark_result = benchmark_by_id.get(candidate.candidate_id)
+            is_valid = bool(validation_result and validation_result.is_valid and not candidate.normalization_error)
+            score = self._score(is_valid, benchmark_result)
+            ranked.append(
+                RankedCandidate(
+                    candidate_id=candidate.candidate_id,
+                    query=candidate.sql,
+                    raw_text=candidate.raw_text,
+                    model=candidate.model,
+                    rank=None,
+                    score=score,
+                    is_valid=is_valid,
+                    validation_reason=validation_result.reason if validation_result else (candidate.normalization_error or "Not evaluated"),
+                    normalization_error=candidate.normalization_error,
+                    execution_time_ms=benchmark_result.execution_time_ms if benchmark_result else None,
+                    planning_time_ms=benchmark_result.planning_time_ms if benchmark_result else None,
+                    speedup=benchmark_result.speedup if benchmark_result else None,
+                    benchmark_error=benchmark_result.error_message if benchmark_result else None,
+                    stage1_text=candidate.stage1_text,
+                )
+            )
+
+        sorted_candidates = sorted(
+            ranked,
+            key=lambda item: (
+                item.score is None,
+                -(item.score or float("-inf")),
+                item.candidate_id,
+            ),
+        )
+
+        reranked: list[RankedCandidate] = []
+        next_rank = 1
+        for candidate in sorted_candidates:
+            reranked.append(replace(candidate, rank=next_rank if candidate.score is not None else None))
+            if candidate.score is not None:
+                next_rank += 1
+        return reranked
+
+    @staticmethod
+    def _score(is_valid: bool, benchmark_result) -> float | None:
+        if not is_valid:
+            return None
+        if benchmark_result and benchmark_result.success and benchmark_result.speedup is not None:
+            return float(benchmark_result.speedup)
+        return 0.0
