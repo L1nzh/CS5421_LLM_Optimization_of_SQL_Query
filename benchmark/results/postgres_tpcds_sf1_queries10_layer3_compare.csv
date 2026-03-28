@@ -1,0 +1,37 @@
+query_id,query_path,model,baseline_median_execution_time_ms,median_execution_time_ms,speedup,executed,success,error_message,rewritten_sql_path
+q1,workloads/tpcds/sf1/queries_10/q1.sql,doubao-seed-2-0-pro-260215,131253.215,103.82,1264.2382488923138,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q1_pro.sql
+q1,workloads/tpcds/sf1/queries_10/q1.sql,doubao-seed-2-0-lite-260215,131253.215,104.654,1254.1633860148681,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q1_lite.sql
+q1,workloads/tpcds/sf1/queries_10/q1.sql,doubao-seed-2-0-mini-260215,131253.215,103.295,1270.6637784984753,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q1_mini.sql
+q2,workloads/tpcds/sf1/queries_10/q2.sql,doubao-seed-2-0-pro-260215,445.348,359.218,1.2397708355371946,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q2_pro.sql
+q2,workloads/tpcds/sf1/queries_10/q2.sql,doubao-seed-2-0-lite-260215,445.348,431.747,1.0315022455280523,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q2_lite.sql
+q2,workloads/tpcds/sf1/queries_10/q2.sql,doubao-seed-2-0-mini-260215,445.348,387.637,1.1488789769810415,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q2_mini.sql
+q3,workloads/tpcds/sf1/queries_10/q3.sql,doubao-seed-2-0-pro-260215,121.691,114.474,1.0630448835543442,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q3_pro.sql
+q3,workloads/tpcds/sf1/queries_10/q3.sql,doubao-seed-2-0-lite-260215,121.691,113.511,1.0720635004537007,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q3_lite.sql
+q3,workloads/tpcds/sf1/queries_10/q3.sql,doubao-seed-2-0-mini-260215,121.691,112.547,1.0812460572027687,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q3_mini.sql
+q5,workloads/tpcds/sf1/queries_10/q5.sql,doubao-seed-2-0-pro-260215,578.074,,,True,False,"column ws.sales does not exist
+LINE 79:            COALESCE(ws.sales, 0::DECIMAL(7,2)) AS sales,
+                             ^
+HINT:  Perhaps you meant to reference the column ""wsa.sales"".",benchmark/results/artifacts_layer3_sf1_q10/q5_pro.sql
+q5,workloads/tpcds/sf1/queries_10/q5.sql,doubao-seed-2-0-lite-260215,578.074,618.277,0.9349757471165835,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q5_lite.sql
+q5,workloads/tpcds/sf1/queries_10/q5.sql,doubao-seed-2-0-mini-260215,578.074,,,True,False,"operator does not exist: integer = character
+LINE 28:     INNER JOIN store ON salesreturns.store_sk = store.s_stor...
+                                                       ^
+HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.",benchmark/results/artifacts_layer3_sf1_q10/q5_mini.sql
+q6,workloads/tpcds/sf1/queries_10/q6.sql,doubao-seed-2-0-pro-260215,48450.613,176.454,274.5792841193739,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q6_pro.sql
+q6,workloads/tpcds/sf1/queries_10/q6.sql,doubao-seed-2-0-lite-260215,48450.613,172.591,280.7250262180531,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q6_lite.sql
+q6,workloads/tpcds/sf1/queries_10/q6.sql,doubao-seed-2-0-mini-260215,48450.613,168.365,287.771288569477,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q6_mini.sql
+q7,workloads/tpcds/sf1/queries_10/q7.sql,doubao-seed-2-0-pro-260215,411.854,396.563,1.0385588166319097,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q7_pro.sql
+q7,workloads/tpcds/sf1/queries_10/q7.sql,doubao-seed-2-0-lite-260215,411.854,414.824,0.9928403371068212,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q7_lite.sql
+q7,workloads/tpcds/sf1/queries_10/q7.sql,doubao-seed-2-0-mini-260215,411.854,435.773,0.9451113308993443,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q7_mini.sql
+q8,workloads/tpcds/sf1/queries_10/q8.sql,doubao-seed-2-0-pro-260215,165.16,149.587,1.1041066402829123,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q8_pro.sql
+q8,workloads/tpcds/sf1/queries_10/q8.sql,doubao-seed-2-0-lite-260215,165.16,154.862,1.0664979142720616,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q8_lite.sql
+q8,workloads/tpcds/sf1/queries_10/q8.sql,doubao-seed-2-0-mini-260215,165.16,162.358,1.0172581578979785,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q8_mini.sql
+q9,workloads/tpcds/sf1/queries_10/q9.sql,doubao-seed-2-0-pro-260215,1132.473,413.805,2.7367310689817668,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q9_pro.sql
+q9,workloads/tpcds/sf1/queries_10/q9.sql,doubao-seed-2-0-lite-260215,1132.473,482.751,2.3458739598675096,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q9_lite.sql
+q9,workloads/tpcds/sf1/queries_10/q9.sql,doubao-seed-2-0-mini-260215,1132.473,412.637,2.744477591684701,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q9_mini.sql
+q10,workloads/tpcds/sf1/queries_10/q10.sql,doubao-seed-2-0-pro-260215,5705.036,285.912,19.953817957973083,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q10_pro.sql
+q10,workloads/tpcds/sf1/queries_10/q10.sql,doubao-seed-2-0-lite-260215,5705.036,469.906,12.140802628610828,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q10_lite.sql
+q10,workloads/tpcds/sf1/queries_10/q10.sql,doubao-seed-2-0-mini-260215,5705.036,5484.059,1.0402944242576528,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q10_mini.sql
+q12,workloads/tpcds/sf1/queries_10/q12.sql,doubao-seed-2-0-pro-260215,57.459,47.826,1.2014176389411617,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q12_pro.sql
+q12,workloads/tpcds/sf1/queries_10/q12.sql,doubao-seed-2-0-lite-260215,57.459,58.68,0.9791922290388548,True,True,,benchmark/results/artifacts_layer3_sf1_q10/q12_lite.sql
+q12,workloads/tpcds/sf1/queries_10/q12.sql,doubao-seed-2-0-mini-260215,57.459,,,False,False,Request timed out.,

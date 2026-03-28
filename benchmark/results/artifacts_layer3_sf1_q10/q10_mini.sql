@@ -1,0 +1,64 @@
+SELECT
+  cd_gender,
+  cd_marital_status,
+  cd_education_status,
+  count(*) cnt1,
+  cd_purchase_estimate,
+  count(*) cnt2,
+  cd_credit_rating,
+  count(*) cnt3,
+  cd_dep_count,
+  count(*) cnt4,
+  cd_dep_employed_count,
+  count(*) cnt5,
+  cd_dep_college_count,
+  count(*) cnt6
+FROM
+  customer c
+INNER JOIN customer_address ca ON c.c_current_addr_sk = ca.ca_address_sk
+INNER JOIN customer_demographics ON cd_demo_sk = c.c_current_cdemo_sk
+WHERE
+  ca.ca_county IN ('Rush County', 'Toole County', 'Jefferson County', 'Dona Ana County', 'La Porte County')
+  AND EXISTS (
+    SELECT 1
+    FROM store_sales ss
+    INNER JOIN date_dim dd ON ss.ss_sold_date_sk = dd.d_date_sk
+    WHERE ss.ss_customer_sk = c.c_customer_sk
+      AND dd.d_year = 2002
+      AND dd.d_moy BETWEEN 1 AND 4
+  )
+  AND (
+    EXISTS (
+      SELECT 1
+      FROM web_sales ws
+      INNER JOIN date_dim dd_w ON ws.ws_sold_date_sk = dd_w.d_date_sk
+      WHERE ws.ws_bill_customer_sk = c.c_customer_sk
+        AND dd_w.d_year = 2002
+        AND dd_w.d_moy BETWEEN 1 AND 4
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM catalog_sales cs
+      INNER JOIN date_dim dd_c ON cs.cs_sold_date_sk = dd_c.d_date_sk
+      WHERE cs.cs_ship_customer_sk = c.c_customer_sk
+        AND dd_c.d_year = 2002
+        AND dd_c.d_moy BETWEEN 1 AND 4
+    )
+  )
+GROUP BY cd_gender,
+  cd_marital_status,
+  cd_education_status,
+  cd_purchase_estimate,
+  cd_credit_rating,
+  cd_dep_count,
+  cd_dep_employed_count,
+  cd_dep_college_count
+ORDER BY cd_gender,
+  cd_marital_status,
+  cd_education_status,
+  cd_purchase_estimate,
+  cd_credit_rating,
+  cd_dep_count,
+  cd_dep_employed_count,
+  cd_dep_college_count
+LIMIT 100

@@ -1,0 +1,85 @@
+You are a PostgreSQL 16 SQL optimizer.
+Target engine: PostgreSQL 16.
+Apply the optimization plan to rewrite the SQL.
+Constraints:
+- Return only ONE SQL query.
+- Do NOT output explanations or markdown.
+- Preserve result set exactly (columns, ordering, LIMIT).
+- Use only standard PostgreSQL syntax (no hints).
+
+Optimization plan:
+1. Run ANALYZE on all referenced tables to refresh table and column statistics, ensuring the query planner has accurate selectivity and row count estimates to choose optimal execution paths.
+2. Create a B-tree covering index on the customer_address table, leading with the filtered ca_county column followed by the join key ca_address_sk, to allow index-only scans for the county filter and avoid base table access for join key retrieval.
+3. Create a B-tree covering index on the customer table, leading with the c_current_addr_sk join key to customer_address, followed by the c_current_cdemo_sk join key to customer_demographics and c_customer_sk key used for sales table joins, to support index-only scans for all customer join operations.
+4. Create a B-tree covering index on the customer_demographics table, leading with the cd_demo_sk join key to customer, including all columns used for grouping, selection, and ordering, to enable index-only scans for customer demographic data retrieval.
+5. Create a B-tree covering index on the date_dim table, leading with the filtered d_year column followed by d_moy and the d_date_sk join key to sales tables, to efficiently retrieve all date keys for Q1 2002 via index-only scan, and allow reuse of this date key set across all sales subqueries via common subexpression elimination.
+6. Create B-tree covering indexes for each sales table to support fast existence checks via index-only scans:
+   a. For store_sales, index leading with ss_customer_sk followed by ss_sold_date_sk
+   b. For web_sales, index leading with ws_bill_customer_sk followed by ws_sold_date_sk
+   c. For catalog_sales, index leading with cs_ship_customer_sk followed by cs_sold_date_sk
+7. Prioritize the most selective filter first in the join order: start with the filtered customer_address dataset, join to the customer table, then join to customer_demographics, then apply semi-joins against the sales datasets to eliminate non-qualifying customer rows as early as possible to reduce downstream processing volume.
+8. Rewrite correlated EXISTS subqueries to explicit semi-joins, and combine the OR condition between web sales and catalog sales existence checks into a single semi-join against a union of qualifying web and catalog sales records, eliminating redundant per-customer subquery execution.
+9. Leverage the identical GROUP BY and ORDER BY column sets to enable streaming aggregation: configure the planner to return rows in the order of the grouping columns, eliminating the need for a dedicated hash aggregate step and separate ORDER BY sort operation, and allowing early query termination as soon as 100 result rows are generated to satisfy the LIMIT clause.
+10. If the planner incorrectly selects sequential scans for large sales or customer tables, temporarily disable sequential scans for the query session to force use of the created covering indexes for faster lookups.
+
+Schema (subset):
+(none)
+
+SQL:
+SELECT
+  cd_gender,
+  cd_marital_status,
+  cd_education_status,
+  count(*) cnt1,
+  cd_purchase_estimate,
+  count(*) cnt2,
+  cd_credit_rating,
+  count(*) cnt3,
+  cd_dep_count,
+  count(*) cnt4,
+  cd_dep_employed_count,
+  count(*) cnt5,
+  cd_dep_college_count,
+  count(*) cnt6
+FROM
+  customer c, customer_address ca, customer_demographics
+WHERE
+  c.c_current_addr_sk = ca.ca_address_sk AND
+    ca_county IN ('Rush County', 'Toole County', 'Jefferson County',
+                  'Dona Ana County', 'La Porte County') AND
+    cd_demo_sk = c.c_current_cdemo_sk AND
+    exists(SELECT *
+           FROM store_sales, date_dim
+           WHERE c.c_customer_sk = ss_customer_sk AND
+             ss_sold_date_sk = d_date_sk AND
+             d_year = 2002 AND
+             d_moy BETWEEN 1 AND 1 + 3) AND
+    (exists(SELECT *
+            FROM web_sales, date_dim
+            WHERE c.c_customer_sk = ws_bill_customer_sk AND
+              ws_sold_date_sk = d_date_sk AND
+              d_year = 2002 AND
+              d_moy BETWEEN 1 AND 1 + 3) OR
+      exists(SELECT *
+             FROM catalog_sales, date_dim
+             WHERE c.c_customer_sk = cs_ship_customer_sk AND
+               cs_sold_date_sk = d_date_sk AND
+               d_year = 2002 AND
+               d_moy BETWEEN 1 AND 1 + 3))
+GROUP BY cd_gender,
+  cd_marital_status,
+  cd_education_status,
+  cd_purchase_estimate,
+  cd_credit_rating,
+  cd_dep_count,
+  cd_dep_employed_count,
+  cd_dep_college_count
+ORDER BY cd_gender,
+  cd_marital_status,
+  cd_education_status,
+  cd_purchase_estimate,
+  cd_credit_rating,
+  cd_dep_count,
+  cd_dep_employed_count,
+  cd_dep_college_count
+LIMIT 100

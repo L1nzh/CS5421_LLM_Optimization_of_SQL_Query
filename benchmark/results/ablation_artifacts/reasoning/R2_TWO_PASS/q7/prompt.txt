@@ -1,0 +1,49 @@
+You are a PostgreSQL 16 SQL optimizer.
+Target engine: PostgreSQL 16.
+Apply the optimization plan to rewrite the SQL.
+Constraints:
+- Return only ONE SQL query.
+- Do NOT output explanations or markdown.
+- Preserve result set exactly (columns, ordering, LIMIT).
+- Use only standard PostgreSQL syntax (no hints).
+
+Optimization plan:
+1. Create partial filtered indexes on the small dimension tables to eliminate full table scans and quickly retrieve only qualifying rows:
+   - Partial index on customer_demographics filtering for the exact gender, marital status, and education status criteria, leading with the cd_demo_sk join key to speed up joins to store_sales
+   - Partial index on promotion filtering for the p_channel_email or p_channel_event criteria, leading with the p_promo_sk join key to speed up joins to store_sales
+   - Composite B-tree index on date_dim on (d_year, d_date_sk) to rapidly fetch all d_date_sk values for the 2000 year filter without scanning the full date_dim table
+2. Deploy a covering composite index on the large store_sales fact table to enable index-only scans, eliminating all access to the base store_sales table:
+   - Lead the index with the filtered foreign key columns (ss_sold_date_sk, ss_cdemo_sk, ss_promo_sk) followed by ss_item_sk, and include the four columns used for average aggregation in the index payload to avoid base table lookups
+3. Add a covering index on the item table on (i_item_sk, i_item_id) to enable index-only scans for the item lookup join, removing the need to access the base item table
+4. Optimize join execution order to minimize the volume of data processed early:
+   - Prioritize scanning and filtering all three small dimension tables first to generate the smallest possible set of valid join keys before joining to the large store_sales fact table, reducing the number of fact table rows that need to be processed
+5. Leverage ordered data access to eliminate expensive full sort operations and enable early query termination:
+   - Ensure the store_sales index order results in rows sorted by ss_item_sk after filtering, so that joined rows produce i_item_id values in sorted order after joining to the item table; this allows use of a streaming group aggregate instead of a hash aggregate, and eliminates the need for a full post-aggregation sort, allowing the query to stop execution immediately once the 100-row limit is reached
+6. Tune PostgreSQL runtime parameters and statistics for optimal plan selection:
+   - Run ANALYZE on all involved tables to ensure up-to-date statistics, so the planner generates accurate row count estimates and selects optimal join types (nested loop joins for small dimension to fact joins)
+   - Increase work_mem sufficiently to prevent group by and sort operations from spilling to disk
+   - Enable parallel query execution (adjust max_parallel_workers_per_gather as needed) to parallelize store_sales index scans and aggregation operations for faster execution on large fact tables
+
+Schema (subset):
+(none)
+
+SQL:
+SELECT
+  i_item_id,
+  avg(ss_quantity) agg1,
+  avg(ss_list_price) agg2,
+  avg(ss_coupon_amt) agg3,
+  avg(ss_sales_price) agg4
+FROM store_sales, customer_demographics, date_dim, item, promotion
+WHERE ss_sold_date_sk = d_date_sk AND
+  ss_item_sk = i_item_sk AND
+  ss_cdemo_sk = cd_demo_sk AND
+  ss_promo_sk = p_promo_sk AND
+  cd_gender = 'M' AND
+  cd_marital_status = 'S' AND
+  cd_education_status = 'College' AND
+  (p_channel_email = 'N' OR p_channel_event = 'N') AND
+  d_year = 2000
+GROUP BY i_item_id
+ORDER BY i_item_id
+LIMIT 100

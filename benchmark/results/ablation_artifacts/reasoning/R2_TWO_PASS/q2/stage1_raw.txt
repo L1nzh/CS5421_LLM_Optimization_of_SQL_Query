@@ -1,0 +1,13 @@
+1. Add covering indexes for the two sales tables to support index-only scans:
+   a. For web_sales, an index ordered by the sold date surrogate key that includes the extended sales price column
+   b. For catalog_sales, an index ordered by the sold date surrogate key that includes the extended sales price column
+2. Add optimized indexes for the date dimension table matching its access patterns:
+   a. A covering index ordered by the date surrogate key that includes the week sequence, day name, and year columns to support joins with sales data and fast retrieval of required attributes
+   b. An index ordered by year then week sequence to speed up filtering for the 2001 and 2002 subsets and week sequence lookups
+3. Push the date filter for years 2001 and 2002 down to the join between the combined sales CTE and date dimension, to avoid processing irrelevant historical sales data before aggregation
+4. Update the weekly sales aggregation CTE to group by both week sequence and year, and include year in the output columns, eliminating the redundant joins back to the date dimension in the 2001 and 2002 subqueries
+5. Explicitly materialize the weekly sales aggregation CTE, as it is accessed twice for 2001 and 2002 data, to avoid recomputing the full aggregation twice
+6. Run up-to-date statistics collection on the web_sales, catalog_sales, and date_dim tables to ensure the query planner has accurate cardinality estimates to select optimal execution strategies
+7. Increase the work_mem configuration for the query session to a level sufficient to run all aggregation and join operations in memory, avoiding slow disk spills for large sales datasets
+8. Configure PostgreSQL 16 parallel query settings appropriately to enable parallel execution of the sales aggregation and join operations, leveraging multiple CPU cores for large datasets
+9. Optimize the final join between 2001 and 2002 weekly sales data by using a merge join, which can be enabled by ensuring the aggregated weekly sales data is sorted by week sequence; this also removes the need for a separate final sort step for the output ORDER BY clause

@@ -1,0 +1,18 @@
+SELECT c.c_customer_id
+FROM (
+    SELECT
+        sr.sr_customer_sk,
+        sr.sr_store_sk,
+        SUM(sr.sr_return_amt) AS ctr_total_return,
+        AVG(SUM(sr.sr_return_amt)) OVER (PARTITION BY sr.sr_store_sk) AS store_avg_return
+    FROM store_returns sr
+    INNER JOIN date_dim d ON sr.sr_returned_date_sk = d.d_date_sk
+    INNER JOIN store s ON sr.sr_store_sk = s.s_store_sk
+    WHERE d.d_year = 2000
+      AND s.s_state = 'TN'
+    GROUP BY sr.sr_customer_sk, sr.sr_store_sk
+) ctr
+INNER JOIN customer c ON ctr.sr_customer_sk = c.c_customer_sk
+WHERE ctr.ctr_total_return > ctr.store_avg_return * 1.2
+ORDER BY c.c_customer_id
+LIMIT 100

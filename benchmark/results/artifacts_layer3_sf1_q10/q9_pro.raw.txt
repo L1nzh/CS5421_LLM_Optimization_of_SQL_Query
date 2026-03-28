@@ -1,0 +1,27 @@
+WITH store_agg AS (
+    SELECT
+        COUNT(*) FILTER (WHERE ss_quantity BETWEEN 1 AND 20) AS cnt1,
+        AVG(ss_ext_discount_amt) FILTER (WHERE ss_quantity BETWEEN 1 AND 20) AS avg_disc1,
+        AVG(ss_net_paid) FILTER (WHERE ss_quantity BETWEEN 1 AND 20) AS avg_paid1,
+        COUNT(*) FILTER (WHERE ss_quantity BETWEEN 21 AND 40) AS cnt2,
+        AVG(ss_ext_discount_amt) FILTER (WHERE ss_quantity BETWEEN 21 AND 40) AS avg_disc2,
+        AVG(ss_net_paid) FILTER (WHERE ss_quantity BETWEEN 21 AND 40) AS avg_paid2,
+        COUNT(*) FILTER (WHERE ss_quantity BETWEEN 41 AND 60) AS cnt3,
+        AVG(ss_ext_discount_amt) FILTER (WHERE ss_quantity BETWEEN 41 AND 60) AS avg_disc3,
+        AVG(ss_net_paid) FILTER (WHERE ss_quantity BETWEEN 41 AND 60) AS avg_paid3,
+        COUNT(*) FILTER (WHERE ss_quantity BETWEEN 61 AND 80) AS cnt4,
+        AVG(ss_ext_discount_amt) FILTER (WHERE ss_quantity BETWEEN 61 AND 80) AS avg_disc4,
+        AVG(ss_net_paid) FILTER (WHERE ss_quantity BETWEEN 61 AND 80) AS avg_paid4,
+        COUNT(*) FILTER (WHERE ss_quantity BETWEEN 81 AND 100) AS cnt5,
+        AVG(ss_ext_discount_amt) FILTER (WHERE ss_quantity BETWEEN 81 AND 100) AS avg_disc5,
+        AVG(ss_net_paid) FILTER (WHERE ss_quantity BETWEEN 81 AND 100) AS avg_paid5
+    FROM store_sales
+)
+SELECT
+    CASE WHEN cnt1 > 62316685 THEN avg_disc1 ELSE avg_paid1 END bucket1,
+    CASE WHEN cnt2 > 19045798 THEN avg_disc2 ELSE avg_paid2 END bucket2,
+    CASE WHEN cnt3 > 365541424 THEN avg_disc3 ELSE avg_paid3 END bucket3,
+    CASE WHEN cnt4 > 216357808 THEN avg_disc4 ELSE avg_paid4 END bucket4,
+    CASE WHEN cnt5 > 184483884 THEN avg_disc5 ELSE avg_paid5 END bucket5
+FROM reason, store_agg
+WHERE r_reason_sk = 1;

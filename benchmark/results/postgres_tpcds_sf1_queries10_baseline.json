@@ -1,0 +1,199 @@
+{
+  "generated_at": "2026-03-20T07:08:10.365818+00:00",
+  "engine": "postgresql",
+  "workload_dir": "workloads/tpcds/sf1/queries_10",
+  "repeat": 3,
+  "dry_run": false,
+  "results": [
+    {
+      "query_id": "q1",
+      "query_path": "workloads/tpcds/sf1/queries_10/q1.sql",
+      "executed": true,
+      "success": true,
+      "run_execution_time_ms": [
+        130385.69,
+        131253.215,
+        132061.85
+      ],
+      "median_execution_time_ms": 131253.215,
+      "run_planning_time_ms": [
+        1.492,
+        0.127,
+        0.142
+      ],
+      "median_planning_time_ms": 0.142,
+      "error_message": null
+    },
+    {
+      "query_id": "q2",
+      "query_path": "workloads/tpcds/sf1/queries_10/q2.sql",
+      "executed": true,
+      "success": true,
+      "run_execution_time_ms": [
+        854.047,
+        445.348,
+        427.675
+      ],
+      "median_execution_time_ms": 445.348,
+      "run_planning_time_ms": [
+        1.549,
+        0.206,
+        0.188
+      ],
+      "median_planning_time_ms": 0.206,
+      "error_message": null
+    },
+    {
+      "query_id": "q3",
+      "query_path": "workloads/tpcds/sf1/queries_10/q3.sql",
+      "executed": true,
+      "success": true,
+      "run_execution_time_ms": [
+        557.199,
+        117.934,
+        121.691
+      ],
+      "median_execution_time_ms": 121.691,
+      "run_planning_time_ms": [
+        1.08,
+        0.12,
+        0.113
+      ],
+      "median_planning_time_ms": 0.12,
+      "error_message": null
+    },
+    {
+      "query_id": "q5",
+      "query_path": "workloads/tpcds/sf1/queries_10/q5.sql",
+      "executed": true,
+      "success": true,
+      "run_execution_time_ms": [
+        571.179,
+        581.682,
+        578.074
+      ],
+      "median_execution_time_ms": 578.074,
+      "run_planning_time_ms": [
+        4.386,
+        0.47,
+        0.493
+      ],
+      "median_planning_time_ms": 0.493,
+      "error_message": null
+    },
+    {
+      "query_id": "q6",
+      "query_path": "workloads/tpcds/sf1/queries_10/q6.sql",
+      "executed": true,
+      "success": true,
+      "run_execution_time_ms": [
+        49694.19,
+        48450.613,
+        48131.96
+      ],
+      "median_execution_time_ms": 48450.613,
+      "run_planning_time_ms": [
+        2.194,
+        0.22,
+        0.188
+      ],
+      "median_planning_time_ms": 0.22,
+      "error_message": null
+    },
+    {
+      "query_id": "q7",
+      "query_path": "workloads/tpcds/sf1/queries_10/q7.sql",
+      "executed": true,
+      "success": true,
+      "run_execution_time_ms": [
+        591.751,
+        399.036,
+        411.854
+      ],
+      "median_execution_time_ms": 411.854,
+      "run_planning_time_ms": [
+        2.219,
+        0.187,
+        0.224
+      ],
+      "median_planning_time_ms": 0.224,
+      "error_message": null
+    },
+    {
+      "query_id": "q8",
+      "query_path": "workloads/tpcds/sf1/queries_10/q8.sql",
+      "executed": true,
+      "success": true,
+      "run_execution_time_ms": [
+        165.16,
+        166.886,
+        161.771
+      ],
+      "median_execution_time_ms": 165.16,
+      "run_planning_time_ms": [
+        1.631,
+        0.264,
+        0.251
+      ],
+      "median_planning_time_ms": 0.264,
+      "error_message": null
+    },
+    {
+      "query_id": "q9",
+      "query_path": "workloads/tpcds/sf1/queries_10/q9.sql",
+      "executed": true,
+      "success": true,
+      "run_execution_time_ms": [
+        1133.162,
+        1129.472,
+        1132.473
+      ],
+      "median_execution_time_ms": 1132.473,
+      "run_planning_time_ms": [
+        1.225,
+        0.197,
+        0.167
+      ],
+      "median_planning_time_ms": 0.197,
+      "error_message": null
+    },
+    {
+      "query_id": "q10",
+      "query_path": "workloads/tpcds/sf1/queries_10/q10.sql",
+      "executed": true,
+      "success": true,
+      "run_execution_time_ms": [
+        5744.981,
+        5705.036,
+        5703.406
+      ],
+      "median_execution_time_ms": 5705.036,
+      "run_planning_time_ms": [
+        4.679,
+        0.309,
+        0.278
+      ],
+      "median_planning_time_ms": 0.309,
+      "error_message": null
+    },
+    {
+      "query_id": "q12",
+      "query_path": "workloads/tpcds/sf1/queries_10/q12.sql",
+      "executed": true,
+      "success": true,
+      "run_execution_time_ms": [
+        64.663,
+        57.459,
+        55.888
+      ],
+      "median_execution_time_ms": 57.459,
+      "run_planning_time_ms": [
+        2.155,
+        0.137,
+        0.117
+      ],
+      "median_planning_time_ms": 0.137,
+      "error_message": null
+    }
+  ]
+}

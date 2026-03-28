@@ -1,0 +1,31 @@
+### Performance Analysis & Rewrite Steps
+1. **Replace implicit comma joins with explicit INNER JOINs**: Eliminates accidental cross-join risk and makes join logic explicit for the PostgreSQL planner, while preserving identical result semantics.
+2. **Push dimension filters to pre-filtered subqueries**: Reduces the size of dimension tables (date_dim, customer_demographics, promotion) *before* joining to the large fact table store_sales, cutting down join processing overhead drastically.
+3. **Only select required columns from dimensions**: Removes unused columns from join workflows to reduce memory and I/O usage during query execution.
+
+<SQL>
+SELECT
+  i.i_item_id,
+  avg(ss.ss_quantity) agg1,
+  avg(ss.ss_list_price) agg2,
+  avg(ss.ss_coupon_amt) agg3,
+  avg(ss.ss_sales_price) agg4
+FROM store_sales ss
+INNER JOIN (
+  SELECT d_date_sk FROM date_dim WHERE d_year = 2000
+) d ON ss.ss_sold_date_sk = d.d_date_sk
+INNER JOIN (
+  SELECT cd_demo_sk FROM customer_demographics
+  WHERE cd_gender = 'M'
+    AND cd_marital_status = 'S'
+    AND cd_education_status = 'College'
+) cd ON ss.ss_cdemo_sk = cd.cd_demo_sk
+INNER JOIN (
+  SELECT p_promo_sk FROM promotion
+  WHERE p_channel_email = 'N' OR p_channel_event = 'N'
+) p ON ss.ss_promo_sk = p.p_promo_sk
+INNER JOIN item i ON ss.ss_item_sk = i.i_item_sk
+GROUP BY i.i_item_id
+ORDER BY i.i_item_id
+LIMIT 100;
+</SQL>

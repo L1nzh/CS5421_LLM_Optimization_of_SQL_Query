@@ -1,0 +1,31 @@
+### Performance Bottlenecks Identified
+1. Implicit comma-style joins make predicate association unclear, and unfiltered full-table scans of dimensions are run before joining to the large `store_sales` fact table, leading to unnecessary row processing.
+2. Unneeded columns from dimension tables are carried through join operations, wasting memory and I/O.
+3. Filters on dimension tables are not pushed early, leading to larger intermediate datasets before aggregation.
+
+### Rewrite Steps
+1. Replace implicit joins with explicit `INNER JOIN` syntax to clearly associate join conditions.
+2. Push dimension filters (`d_moy=11` for `date_dim`, `i_manufact_id=128` for `item`) to base table scans, and only select columns needed for joins/aggregation to reduce intermediate data volume.
+3. Join pre-filtered small dimension datasets to the `store_sales` fact table to minimize the number of fact rows processed.
+
+<SQL>
+SELECT
+  dt.d_year,
+  item.i_brand_id AS brand_id,
+  item.i_brand AS brand,
+  SUM(ss_ext_sales_price) AS sum_agg
+FROM store_sales
+INNER JOIN (
+    SELECT d_date_sk, d_year
+    FROM date_dim
+    WHERE d_moy = 11
+) dt ON dt.d_date_sk = store_sales.ss_sold_date_sk
+INNER JOIN (
+    SELECT i_item_sk, i_brand_id, i_brand
+    FROM item
+    WHERE i_manufact_id = 128
+) item ON store_sales.ss_item_sk = item.i_item_sk
+GROUP BY dt.d_year, item.i_brand, item.i_brand_id
+ORDER BY dt.d_year, sum_agg DESC, brand_id
+LIMIT 100;
+</SQL>

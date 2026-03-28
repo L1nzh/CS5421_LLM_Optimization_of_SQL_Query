@@ -1,0 +1,72 @@
+### Performance Bottleneck Analysis
+1. **Unnecessary subquery**: The `x` subquery wrapping the `web_sales` select adds no value and complicates the query plan.
+2. **Missing early filter**: The original query processes sales data for all years, then filters only 2001/2002 later, wasting compute on irrelevant data.
+3. **Redundant date_dim joins**: The `y` and `z` subqueries re-join `date_dim` to get year values, even though `d_week_seq` uniquely maps to a year that can be precomputed during aggregation.
+4. **Implicit join syntax**: Comma joins are less readable and can lead to accidental cross joins, with no functional benefit.
+
+### Rewrite Steps
+1. Remove the redundant `x` subquery in the `wscs` CTE.
+2. Push down a filter for `d_year IN (2001,2002)` to the `wswscs` CTE, so only relevant sales data is aggregated.
+3. Add `d_year` to the `wswscs` GROUP BY and SELECT list (functionally dependent on `d_week_seq`, no change to grouping results) to eliminate redundant `date_dim` joins in the `y`/`z` subqueries.
+4. Replace implicit comma joins with explicit standard JOIN syntax for readability.
+5. Omit redundant `ELSE NULL` in CASE statements (default behavior, no change to results).
+
+<SQL>
+WITH wscs AS (
+    SELECT ws_sold_date_sk sold_date_sk, ws_ext_sales_price sales_price FROM web_sales
+    UNION ALL
+    SELECT cs_sold_date_sk sold_date_sk, cs_ext_sales_price sales_price FROM catalog_sales
+),
+wswscs AS (
+    SELECT
+        d_week_seq,
+        d_year,
+        sum(CASE WHEN d_day_name = 'Sunday' THEN sales_price END) sun_sales,
+        sum(CASE WHEN d_day_name = 'Monday' THEN sales_price END) mon_sales,
+        sum(CASE WHEN d_day_name = 'Tuesday' THEN sales_price END) tue_sales,
+        sum(CASE WHEN d_day_name = 'Wednesday' THEN sales_price END) wed_sales,
+        sum(CASE WHEN d_day_name = 'Thursday' THEN sales_price END) thu_sales,
+        sum(CASE WHEN d_day_name = 'Friday' THEN sales_price END) fri_sales,
+        sum(CASE WHEN d_day_name = 'Saturday' THEN sales_price END) sat_sales
+    FROM wscs
+    INNER JOIN date_dim ON d_date_sk = sold_date_sk
+    WHERE d_year IN (2001, 2002)
+    GROUP BY d_week_seq, d_year
+)
+SELECT
+    d_week_seq1,
+    round(sun_sales1 / sun_sales2, 2),
+    round(mon_sales1 / mon_sales2, 2),
+    round(tue_sales1 / tue_sales2, 2),
+    round(wed_sales1 / wed_sales2, 2),
+    round(thu_sales1 / thu_sales2, 2),
+    round(fri_sales1 / fri_sales2, 2),
+    round(sat_sales1 / sat_sales2, 2)
+FROM (
+    SELECT
+        d_week_seq d_week_seq1,
+        sun_sales sun_sales1,
+        mon_sales mon_sales1,
+        tue_sales tue_sales1,
+        wed_sales wed_sales1,
+        thu_sales thu_sales1,
+        fri_sales fri_sales1,
+        sat_sales sat_sales1
+    FROM wswscs
+    WHERE d_year = 2001
+) y
+INNER JOIN (
+    SELECT
+        d_week_seq d_week_seq2,
+        sun_sales sun_sales2,
+        mon_sales mon_sales2,
+        tue_sales tue_sales2,
+        wed_sales wed_sales2,
+        thu_sales thu_sales2,
+        fri_sales fri_sales2,
+        sat_sales sat_sales2
+    FROM wswscs
+    WHERE d_year = 2002
+) z ON d_week_seq1 = d_week_seq2 - 53
+ORDER BY d_week_seq1;
+</SQL>

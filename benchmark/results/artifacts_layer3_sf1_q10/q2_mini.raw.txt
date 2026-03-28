@@ -1,0 +1,57 @@
+WITH wscs AS (
+    SELECT ws_sold_date_sk AS sold_date_sk, ws_ext_sales_price AS sales_price FROM web_sales
+    UNION ALL
+    SELECT cs_sold_date_sk AS sold_date_sk, cs_ext_sales_price AS sales_price FROM catalog_sales
+),
+wswscs AS (
+    SELECT
+        d_week_seq,
+        sum(sales_price) FILTER (WHERE d_day_name = 'Sunday') AS sun_sales,
+        sum(sales_price) FILTER (WHERE d_day_name = 'Monday') AS mon_sales,
+        sum(sales_price) FILTER (WHERE d_day_name = 'Tuesday') AS tue_sales,
+        sum(sales_price) FILTER (WHERE d_day_name = 'Wednesday') AS wed_sales,
+        sum(sales_price) FILTER (WHERE d_day_name = 'Thursday') AS thu_sales,
+        sum(sales_price) FILTER (WHERE d_day_name = 'Friday') AS fri_sales,
+        sum(sales_price) FILTER (WHERE d_day_name = 'Saturday') AS sat_sales
+    FROM wscs
+    JOIN date_dim ON d_date_sk = sold_date_sk
+    GROUP BY d_week_seq
+)
+SELECT
+    y.d_week_seq1,
+    round(y.sun_sales1 / z.sun_sales2, 2),
+    round(y.mon_sales1 / z.mon_sales2, 2),
+    round(y.tue_sales1 / z.tue_sales2, 2),
+    round(y.wed_sales1 / z.wed_sales2, 2),
+    round(y.thu_sales1 / z.thu_sales2, 2),
+    round(y.fri_sales1 / z.fri_sales2, 2),
+    round(y.sat_sales1 / z.sat_sales2, 2)
+FROM (
+    SELECT
+        wswscs.d_week_seq AS d_week_seq1,
+        sun_sales AS sun_sales1,
+        mon_sales AS mon_sales1,
+        tue_sales AS tue_sales1,
+        wed_sales AS wed_sales1,
+        thu_sales AS thu_sales1,
+        fri_sales AS fri_sales1,
+        sat_sales AS sat_sales1
+    FROM wswscs
+    JOIN date_dim ON date_dim.d_week_seq = wswscs.d_week_seq
+    WHERE d_year = 2001
+) y
+JOIN (
+    SELECT
+        wswscs.d_week_seq AS d_week_seq2,
+        sun_sales AS sun_sales2,
+        mon_sales AS mon_sales2,
+        tue_sales AS tue_sales2,
+        wed_sales AS wed_sales2,
+        thu_sales AS thu_sales2,
+        fri_sales AS fri_sales2,
+        sat_sales AS sat_sales2
+    FROM wswscs
+    JOIN date_dim ON date_dim.d_week_seq = wswscs.d_week_seq
+    WHERE d_year = 2001 + 1
+) z ON y.d_week_seq1 = z.d_week_seq2 - 53
+ORDER BY d_week_seq1

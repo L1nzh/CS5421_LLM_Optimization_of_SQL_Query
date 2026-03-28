@@ -1,0 +1,11 @@
+query_id,query_path,executed,success,median_execution_time_ms,median_planning_time_ms,error_message,run_1_execution_time_ms,run_2_execution_time_ms,run_3_execution_time_ms,run_1_planning_time_ms,run_2_planning_time_ms,run_3_planning_time_ms
+q1,workloads/tpcds/sf1/queries_10/q1.sql,True,True,131253.215,0.142,,130385.69,131253.215,132061.85,1.492,0.127,0.142
+q2,workloads/tpcds/sf1/queries_10/q2.sql,True,True,445.348,0.206,,854.047,445.348,427.675,1.549,0.206,0.188
+q3,workloads/tpcds/sf1/queries_10/q3.sql,True,True,121.691,0.12,,557.199,117.934,121.691,1.08,0.12,0.113
+q5,workloads/tpcds/sf1/queries_10/q5.sql,True,True,578.074,0.493,,571.179,581.682,578.074,4.386,0.47,0.493
+q6,workloads/tpcds/sf1/queries_10/q6.sql,True,True,48450.613,0.22,,49694.19,48450.613,48131.96,2.194,0.22,0.188
+q7,workloads/tpcds/sf1/queries_10/q7.sql,True,True,411.854,0.224,,591.751,399.036,411.854,2.219,0.187,0.224
+q8,workloads/tpcds/sf1/queries_10/q8.sql,True,True,165.16,0.264,,165.16,166.886,161.771,1.631,0.264,0.251
+q9,workloads/tpcds/sf1/queries_10/q9.sql,True,True,1132.473,0.197,,1133.162,1129.472,1132.473,1.225,0.197,0.167
+q10,workloads/tpcds/sf1/queries_10/q10.sql,True,True,5705.036,0.309,,5744.981,5705.036,5703.406,4.679,0.309,0.278
+q12,workloads/tpcds/sf1/queries_10/q12.sql,True,True,57.459,0.137,,64.663,57.459,55.888,2.155,0.137,0.117

@@ -1,0 +1,27 @@
+WITH cat_price AS (
+  SELECT i_category, 1.2 * AVG(i_current_price) AS min_price
+  FROM item
+  GROUP BY i_category
+), target_date AS (
+  SELECT DISTINCT d_month_seq
+  FROM date_dim
+  WHERE d_year = 2000 AND d_moy = 1
+)
+SELECT
+  a.ca_state state,
+  count(*) cnt
+FROM
+  customer_address a
+  JOIN customer c ON a.ca_address_sk = c.c_current_addr_sk
+  JOIN store_sales s ON c.c_customer_sk = s.ss_customer_sk
+  JOIN date_dim d ON s.ss_sold_date_sk = d.d_date_sk
+  JOIN item i ON s.ss_item_sk = i.i_item_sk
+  JOIN cat_price cp ON i.i_category = cp.i_category
+  CROSS JOIN target_date td
+WHERE
+  d.d_month_seq = td.d_month_seq
+  AND i.i_current_price > cp.min_price
+GROUP BY a.ca_state
+HAVING count(*) >= 10
+ORDER BY cnt
+LIMIT 100

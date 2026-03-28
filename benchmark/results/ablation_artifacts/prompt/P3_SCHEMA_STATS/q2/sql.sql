@@ -1,0 +1,56 @@
+WITH wscs AS (
+    SELECT ws_sold_date_sk AS sold_date_sk, ws_ext_sales_price AS sales_price FROM web_sales
+    UNION ALL
+    SELECT cs_sold_date_sk AS sold_date_sk, cs_ext_sales_price AS sales_price FROM catalog_sales
+),
+wswscs AS (
+    SELECT
+        d.d_week_seq,
+        SUM(s.sales_price) FILTER (WHERE d.d_day_name = 'Sunday') AS sun_sales,
+        SUM(s.sales_price) FILTER (WHERE d.d_day_name = 'Monday') AS mon_sales,
+        SUM(s.sales_price) FILTER (WHERE d.d_day_name = 'Tuesday') AS tue_sales,
+        SUM(s.sales_price) FILTER (WHERE d.d_day_name = 'Wednesday') AS wed_sales,
+        SUM(s.sales_price) FILTER (WHERE d.d_day_name = 'Thursday') AS thu_sales,
+        SUM(s.sales_price) FILTER (WHERE d.d_day_name = 'Friday') AS fri_sales,
+        SUM(s.sales_price) FILTER (WHERE d.d_day_name = 'Saturday') AS sat_sales
+    FROM wscs s
+    INNER JOIN date_dim d ON d.d_date_sk = s.sold_date_sk
+    WHERE d.d_year IN (2001, 2002)
+    GROUP BY d.d_week_seq
+)
+SELECT
+    y.d_week_seq1,
+    ROUND(y.sun_sales1 / z.sun_sales2, 2),
+    ROUND(y.mon_sales1 / z.mon_sales2, 2),
+    ROUND(y.tue_sales1 / z.tue_sales2, 2),
+    ROUND(y.wed_sales1 / z.wed_sales2, 2),
+    ROUND(y.thu_sales1 / z.thu_sales2, 2),
+    ROUND(y.fri_sales1 / z.fri_sales2, 2),
+    ROUND(y.sat_sales1 / z.sat_sales2, 2)
+FROM (
+    SELECT
+        w.d_week_seq AS d_week_seq1,
+        w.sun_sales AS sun_sales1,
+        w.mon_sales AS mon_sales1,
+        w.tue_sales AS tue_sales1,
+        w.wed_sales AS wed_sales1,
+        w.thu_sales AS thu_sales1,
+        w.fri_sales AS fri_sales1,
+        w.sat_sales AS sat_sales1
+    FROM wswscs w
+    WHERE EXISTS (SELECT 1 FROM date_dim d WHERE d.d_week_seq = w.d_week_seq AND d.d_year = 2001)
+) y
+INNER JOIN (
+    SELECT
+        w.d_week_seq AS d_week_seq2,
+        w.sun_sales AS sun_sales2,
+        w.mon_sales AS mon_sales2,
+        w.tue_sales AS tue_sales2,
+        w.wed_sales AS wed_sales2,
+        w.thu_sales AS thu_sales2,
+        w.fri_sales AS fri_sales2,
+        w.sat_sales AS sat_sales2
+    FROM wswscs w
+    WHERE EXISTS (SELECT 1 FROM date_dim d WHERE d.d_week_seq = w.d_week_seq AND d.d_year = 2002)
+) z ON y.d_week_seq1 = z.d_week_seq2 - 53
+ORDER BY y.d_week_seq1

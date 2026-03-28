@@ -1,0 +1,106 @@
+WITH date_range AS (
+    SELECT d_date_sk
+    FROM date_dim
+    WHERE d_date BETWEEN CAST('2000-08-23' AS DATE) AND (CAST('2000-08-23' AS DATE) + INTERVAL '14 days')
+),
+ssr AS (
+    SELECT
+        s_store_id,
+        COALESCE(sa.sales, 0) AS sales,
+        COALESCE(sa.profit, 0) AS profit,
+        COALESCE(ra.returns, 0) AS returns,
+        COALESCE(ra.profit_loss, 0) AS profit_loss
+    FROM store st
+    LEFT JOIN (
+        SELECT ss_store_sk AS store_sk, SUM(ss_ext_sales_price) AS sales, SUM(ss_net_profit) AS profit
+        FROM store_sales ss
+        JOIN date_range dr ON ss.ss_sold_date_sk = dr.d_date_sk
+        GROUP BY ss_store_sk
+    ) sa ON st.s_store_sk = sa.store_sk
+    LEFT JOIN (
+        SELECT sr_store_sk AS store_sk, SUM(sr_return_amt) AS returns, SUM(sr_net_loss) AS profit_loss
+        FROM store_returns sr
+        JOIN date_range dr ON sr.sr_returned_date_sk = dr.d_date_sk
+        GROUP BY sr_store_sk
+    ) ra ON st.s_store_sk = ra.store_sk
+    WHERE sa.store_sk IS NOT NULL OR ra.store_sk IS NOT NULL
+),
+csr AS (
+    SELECT
+        cp_catalog_page_id,
+        COALESCE(sa.sales, 0) AS sales,
+        COALESCE(sa.profit, 0) AS profit,
+        COALESCE(ra.returns, 0) AS returns,
+        COALESCE(ra.profit_loss, 0) AS profit_loss
+    FROM catalog_page cp
+    LEFT JOIN (
+        SELECT cs_catalog_page_sk AS page_sk, SUM(cs_ext_sales_price) AS sales, SUM(cs_net_profit) AS profit
+        FROM catalog_sales cs
+        JOIN date_range dr ON cs.cs_sold_date_sk = dr.d_date_sk
+        GROUP BY cs_catalog_page_sk
+    ) sa ON cp.cp_catalog_page_sk = sa.page_sk
+    LEFT JOIN (
+        SELECT cr_catalog_page_sk AS page_sk, SUM(cr_return_amount) AS returns, SUM(cr_net_loss) AS profit_loss
+        FROM catalog_returns cr
+        JOIN date_range dr ON cr.cr_returned_date_sk = dr.d_date_sk
+        GROUP BY cr_catalog_page_sk
+    ) ra ON cp.cp_catalog_page_sk = ra.page_sk
+    WHERE sa.page_sk IS NOT NULL OR ra.page_sk IS NOT NULL
+),
+wsr AS (
+    SELECT
+        web_site_id,
+        COALESCE(sa.sales, 0) AS sales,
+        COALESCE(sa.profit, 0) AS profit,
+        COALESCE(ra.returns, 0) AS returns,
+        COALESCE(ra.profit_loss, 0) AS profit_loss
+    FROM web_site ws
+    LEFT JOIN (
+        SELECT ws_web_site_sk AS wsr_web_site_sk, SUM(ws_ext_sales_price) AS sales, SUM(ws_net_profit) AS profit
+        FROM web_sales wsales
+        JOIN date_range dr ON wsales.ws_sold_date_sk = dr.d_date_sk
+        GROUP BY ws_web_site_sk
+    ) sa ON ws.web_site_sk = sa.wsr_web_site_sk
+    LEFT JOIN (
+        SELECT ws.ws_web_site_sk AS wsr_web_site_sk, SUM(wr.wr_return_amt) AS returns, SUM(wr.wr_net_loss) AS profit_loss
+        FROM web_returns wr
+        JOIN date_range dr ON wr.wr_returned_date_sk = dr.d_date_sk
+        LEFT JOIN web_sales ws ON wr.wr_item_sk = ws.ws_item_sk AND wr.wr_order_number = ws.ws_order_number
+        GROUP BY ws.ws_web_site_sk
+    ) ra ON ws.web_site_sk = ra.wsr_web_site_sk
+    WHERE sa.wsr_web_site_sk IS NOT NULL OR ra.wsr_web_site_sk IS NOT NULL
+)
+SELECT
+  channel,
+  id,
+  sum(sales) AS sales,
+  sum(returns) AS returns,
+  sum(profit) AS profit
+FROM
+  (SELECT
+     'store channel' AS channel,
+     concat('store', s_store_id) AS id,
+     sales,
+     returns,
+     (profit - profit_loss) AS profit
+   FROM ssr
+   UNION ALL
+   SELECT
+     'catalog channel' AS channel,
+     concat('catalog_page', cp_catalog_page_id) AS id,
+     sales,
+     returns,
+     (profit - profit_loss) AS profit
+   FROM csr
+   UNION ALL
+   SELECT
+     'web channel' AS channel,
+     concat('web_site', web_site_id) AS id,
+     sales,
+     returns,
+     (profit - profit_loss) AS profit
+   FROM wsr
+  ) x
+GROUP BY ROLLUP (channel, id)
+ORDER BY channel, id
+LIMIT 100

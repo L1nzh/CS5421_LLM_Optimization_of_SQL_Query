@@ -1,0 +1,33 @@
+WITH filtered_dates AS (
+    SELECT d_date_sk
+    FROM date_dim
+    WHERE d_date BETWEEN DATE '2001-01-12' AND DATE '2001-01-12' + 30
+),
+agg_web_sales AS (
+    SELECT ws_item_sk, SUM(ws_ext_sales_price) AS itemrevenue
+    FROM web_sales
+    INNER JOIN filtered_dates ON ws_sold_date_sk = filtered_dates.d_date_sk
+    GROUP BY ws_item_sk
+),
+filtered_items AS (
+    SELECT i_item_sk, i_item_id, i_item_desc, i_category, i_class, i_current_price
+    FROM item
+    WHERE i_category IN ('Jewelry', 'Sports', 'Books')
+)
+SELECT
+    fi.i_item_id,
+    fi.i_item_desc,
+    fi.i_category,
+    fi.i_class,
+    fi.i_current_price,
+    aws.itemrevenue,
+    aws.itemrevenue * 100 / SUM(aws.itemrevenue) OVER (PARTITION BY fi.i_class) AS revenueratio
+FROM filtered_items fi
+INNER JOIN agg_web_sales aws ON fi.i_item_sk = aws.ws_item_sk
+ORDER BY
+    fi.i_category,
+    fi.i_class,
+    fi.i_item_id,
+    fi.i_item_desc,
+    revenueratio
+LIMIT 100

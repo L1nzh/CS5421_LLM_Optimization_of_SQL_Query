@@ -1,0 +1,36 @@
+WITH ss_bucket_agg AS (
+    SELECT
+        MAX(CASE WHEN bucket = 1 THEN cnt END) AS b1_cnt,
+        MAX(CASE WHEN bucket = 1 THEN avg_disc END) AS b1_avg_disc,
+        MAX(CASE WHEN bucket = 1 THEN avg_net END) AS b1_avg_net,
+        MAX(CASE WHEN bucket = 2 THEN cnt END) AS b2_cnt,
+        MAX(CASE WHEN bucket = 2 THEN avg_disc END) AS b2_avg_disc,
+        MAX(CASE WHEN bucket = 2 THEN avg_net END) AS b2_avg_net,
+        MAX(CASE WHEN bucket = 3 THEN cnt END) AS b3_cnt,
+        MAX(CASE WHEN bucket = 3 THEN avg_disc END) AS b3_avg_disc,
+        MAX(CASE WHEN bucket = 3 THEN avg_net END) AS b3_avg_net,
+        MAX(CASE WHEN bucket = 4 THEN cnt END) AS b4_cnt,
+        MAX(CASE WHEN bucket = 4 THEN avg_disc END) AS b4_avg_disc,
+        MAX(CASE WHEN bucket = 4 THEN avg_net END) AS b4_avg_net,
+        MAX(CASE WHEN bucket = 5 THEN cnt END) AS b5_cnt,
+        MAX(CASE WHEN bucket = 5 THEN avg_disc END) AS b5_avg_disc,
+        MAX(CASE WHEN bucket = 5 THEN avg_net END) AS b5_avg_net
+    FROM (
+        SELECT
+            WIDTH_BUCKET(ss_quantity, 1, 100, 5) AS bucket,
+            COUNT(*) AS cnt,
+            AVG(ss_ext_discount_amt) AS avg_disc,
+            AVG(ss_net_paid) AS avg_net
+        FROM store_sales
+        WHERE ss_quantity BETWEEN 1 AND 100
+        GROUP BY 1
+    ) bucket_groups
+)
+SELECT
+    CASE WHEN COALESCE(b1_cnt, 0) > 62316685 THEN b1_avg_disc ELSE b1_avg_net END AS bucket1,
+    CASE WHEN COALESCE(b2_cnt, 0) > 19045798 THEN b2_avg_disc ELSE b2_avg_net END AS bucket2,
+    CASE WHEN COALESCE(b3_cnt, 0) > 365541424 THEN b3_avg_disc ELSE b3_avg_net END AS bucket3,
+    CASE WHEN COALESCE(b4_cnt, 0) > 216357808 THEN b4_avg_disc ELSE b4_avg_net END AS bucket4,
+    CASE WHEN COALESCE(b5_cnt, 0) > 184483884 THEN b5_avg_disc ELSE b5_avg_net END AS bucket5
+FROM reason, ss_bucket_agg
+WHERE r_reason_sk = 1;

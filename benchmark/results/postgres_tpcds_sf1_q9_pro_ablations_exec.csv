@@ -1,0 +1,77 @@
+experiment,variant_id,query_id,query_path,model,baseline_median_execution_time_ms,median_execution_time_ms,speedup,executed,success,error_message,artifact_dir
+prompt,P0_BASE,q1,workloads/tpcds/sf1/queries_10/q1.sql,doubao-seed-2-0-pro-260215,131253.215,161.111,814.67568943151,True,True,,benchmark/results/ablation_artifacts/prompt/P0_BASE/q1
+prompt,P1_ENGINE,q1,workloads/tpcds/sf1/queries_10/q1.sql,doubao-seed-2-0-pro-260215,131253.215,107.148,1224.9712080486804,True,True,,benchmark/results/ablation_artifacts/prompt/P1_ENGINE/q1
+prompt,P2_SCHEMA_MIN,q1,workloads/tpcds/sf1/queries_10/q1.sql,doubao-seed-2-0-pro-260215,131253.215,108.651,1208.0258350130234,True,True,,benchmark/results/ablation_artifacts/prompt/P2_SCHEMA_MIN/q1
+prompt,P3_SCHEMA_STATS,q1,workloads/tpcds/sf1/queries_10/q1.sql,doubao-seed-2-0-pro-260215,131253.215,110.812,1184.467521568061,True,True,,benchmark/results/ablation_artifacts/prompt/P3_SCHEMA_STATS/q1
+prompt,P4_RULES,q1,workloads/tpcds/sf1/queries_10/q1.sql,doubao-seed-2-0-pro-260215,131253.215,131387.751,0.9989760384893109,True,True,,benchmark/results/ablation_artifacts/prompt/P4_RULES/q1
+reasoning,R0_DIRECT,q1,workloads/tpcds/sf1/queries_10/q1.sql,doubao-seed-2-0-pro-260215,131253.215,109.344,1200.3696133304068,True,True,,benchmark/results/ablation_artifacts/reasoning/R0_DIRECT/q1
+reasoning,R1_COT_DELIM,q1,workloads/tpcds/sf1/queries_10/q1.sql,doubao-seed-2-0-pro-260215,131253.215,111.365,1178.5858662955147,True,True,,benchmark/results/ablation_artifacts/reasoning/R1_COT_DELIM/q1
+reasoning,R2_TWO_PASS,q1,workloads/tpcds/sf1/queries_10/q1.sql,doubao-seed-2-0-pro-260215,131253.215,,,True,False,"syntax error at or near ""customer_total_return""
+LINE 1: EXPLAIN (ANALYZE, FORMAT JSON) WITH MATERIALIZED customer_to...
+                                                         ^",benchmark/results/ablation_artifacts/reasoning/R2_TWO_PASS/q1
+prompt,P0_BASE,q2,workloads/tpcds/sf1/queries_10/q2.sql,doubao-seed-2-0-pro-260215,445.348,600.424,0.7417225160886307,True,True,,benchmark/results/ablation_artifacts/prompt/P0_BASE/q2
+prompt,P1_ENGINE,q2,workloads/tpcds/sf1/queries_10/q2.sql,doubao-seed-2-0-pro-260215,445.348,364.918,1.2204056801802048,True,True,,benchmark/results/ablation_artifacts/prompt/P1_ENGINE/q2
+prompt,P2_SCHEMA_MIN,q2,workloads/tpcds/sf1/queries_10/q2.sql,doubao-seed-2-0-pro-260215,445.348,358.983,1.2405824231231006,True,True,,benchmark/results/ablation_artifacts/prompt/P2_SCHEMA_MIN/q2
+prompt,P3_SCHEMA_STATS,q2,workloads/tpcds/sf1/queries_10/q2.sql,doubao-seed-2-0-pro-260215,445.348,343.089,1.2980538577453664,True,True,,benchmark/results/ablation_artifacts/prompt/P3_SCHEMA_STATS/q2
+prompt,P4_RULES,q2,workloads/tpcds/sf1/queries_10/q2.sql,doubao-seed-2-0-pro-260215,445.348,420.686,1.058623296235197,True,True,,benchmark/results/ablation_artifacts/prompt/P4_RULES/q2
+reasoning,R0_DIRECT,q2,workloads/tpcds/sf1/queries_10/q2.sql,doubao-seed-2-0-pro-260215,445.348,381.381,1.167724663787656,True,True,,benchmark/results/ablation_artifacts/reasoning/R0_DIRECT/q2
+reasoning,R1_COT_DELIM,q2,workloads/tpcds/sf1/queries_10/q2.sql,doubao-seed-2-0-pro-260215,445.348,385.655,1.1547834204146195,True,True,,benchmark/results/ablation_artifacts/reasoning/R1_COT_DELIM/q2
+reasoning,R2_TWO_PASS,q2,workloads/tpcds/sf1/queries_10/q2.sql,doubao-seed-2-0-pro-260215,445.348,374.547,1.1890310161341566,True,True,,benchmark/results/ablation_artifacts/reasoning/R2_TWO_PASS/q2
+prompt,P0_BASE,q3,workloads/tpcds/sf1/queries_10/q3.sql,doubao-seed-2-0-pro-260215,121.691,544.347,0.22355409325301692,True,True,,benchmark/results/ablation_artifacts/prompt/P0_BASE/q3
+prompt,P1_ENGINE,q3,workloads/tpcds/sf1/queries_10/q3.sql,doubao-seed-2-0-pro-260215,121.691,115.842,1.0504911862709554,True,True,,benchmark/results/ablation_artifacts/prompt/P1_ENGINE/q3
+prompt,P2_SCHEMA_MIN,q3,workloads/tpcds/sf1/queries_10/q3.sql,doubao-seed-2-0-pro-260215,121.691,112.822,1.0786105546790519,True,True,,benchmark/results/ablation_artifacts/prompt/P2_SCHEMA_MIN/q3
+prompt,P3_SCHEMA_STATS,q3,workloads/tpcds/sf1/queries_10/q3.sql,doubao-seed-2-0-pro-260215,121.691,113.862,1.0687586727793295,True,True,,benchmark/results/ablation_artifacts/prompt/P3_SCHEMA_STATS/q3
+prompt,P4_RULES,q3,workloads/tpcds/sf1/queries_10/q3.sql,doubao-seed-2-0-pro-260215,121.691,111.556,1.0908512316683998,True,True,,benchmark/results/ablation_artifacts/prompt/P4_RULES/q3
+reasoning,R0_DIRECT,q3,workloads/tpcds/sf1/queries_10/q3.sql,doubao-seed-2-0-pro-260215,121.691,113.326,1.0738135997035103,True,True,,benchmark/results/ablation_artifacts/reasoning/R0_DIRECT/q3
+reasoning,R1_COT_DELIM,q3,workloads/tpcds/sf1/queries_10/q3.sql,doubao-seed-2-0-pro-260215,121.691,111.02,1.09611781660962,True,True,,benchmark/results/ablation_artifacts/reasoning/R1_COT_DELIM/q3
+reasoning,R2_TWO_PASS,q3,workloads/tpcds/sf1/queries_10/q3.sql,doubao-seed-2-0-pro-260215,121.691,3264.596,0.03727597534273766,True,True,,benchmark/results/ablation_artifacts/reasoning/R2_TWO_PASS/q3
+prompt,P0_BASE,q6,workloads/tpcds/sf1/queries_10/q6.sql,doubao-seed-2-0-pro-260215,48450.613,201.39,240.58102686330008,True,True,,benchmark/results/ablation_artifacts/prompt/P0_BASE/q6
+prompt,P1_ENGINE,q6,workloads/tpcds/sf1/queries_10/q6.sql,doubao-seed-2-0-pro-260215,48450.613,191.167,253.44653104353785,True,True,,benchmark/results/ablation_artifacts/prompt/P1_ENGINE/q6
+prompt,P2_SCHEMA_MIN,q6,workloads/tpcds/sf1/queries_10/q6.sql,doubao-seed-2-0-pro-260215,48450.613,194.655,248.90505252883304,True,True,,benchmark/results/ablation_artifacts/prompt/P2_SCHEMA_MIN/q6
+prompt,P3_SCHEMA_STATS,q6,workloads/tpcds/sf1/queries_10/q6.sql,doubao-seed-2-0-pro-260215,48450.613,301.39,160.75720163243636,True,True,,benchmark/results/ablation_artifacts/prompt/P3_SCHEMA_STATS/q6
+prompt,P4_RULES,q6,workloads/tpcds/sf1/queries_10/q6.sql,doubao-seed-2-0-pro-260215,48450.613,49540.247,0.9780050753481305,True,True,,benchmark/results/ablation_artifacts/prompt/P4_RULES/q6
+reasoning,R0_DIRECT,q6,workloads/tpcds/sf1/queries_10/q6.sql,doubao-seed-2-0-pro-260215,48450.613,171.832,281.96501815726987,True,True,,benchmark/results/ablation_artifacts/reasoning/R0_DIRECT/q6
+reasoning,R1_COT_DELIM,q6,workloads/tpcds/sf1/queries_10/q6.sql,doubao-seed-2-0-pro-260215,48450.613,172.241,281.2954697197531,True,True,,benchmark/results/ablation_artifacts/reasoning/R1_COT_DELIM/q6
+reasoning,R2_TWO_PASS,q6,workloads/tpcds/sf1/queries_10/q6.sql,doubao-seed-2-0-pro-260215,48450.613,294.001,164.7974428658406,True,True,,benchmark/results/ablation_artifacts/reasoning/R2_TWO_PASS/q6
+prompt,P0_BASE,q7,workloads/tpcds/sf1/queries_10/q7.sql,doubao-seed-2-0-pro-260215,411.854,612.47,0.6724476300880042,True,True,,benchmark/results/ablation_artifacts/prompt/P0_BASE/q7
+prompt,P1_ENGINE,q7,workloads/tpcds/sf1/queries_10/q7.sql,doubao-seed-2-0-pro-260215,411.854,435.269,0.9462056797061127,True,True,,benchmark/results/ablation_artifacts/prompt/P1_ENGINE/q7
+prompt,P2_SCHEMA_MIN,q7,workloads/tpcds/sf1/queries_10/q7.sql,doubao-seed-2-0-pro-260215,411.854,416.962,0.9877494831663317,True,True,,benchmark/results/ablation_artifacts/prompt/P2_SCHEMA_MIN/q7
+prompt,P3_SCHEMA_STATS,q7,workloads/tpcds/sf1/queries_10/q7.sql,doubao-seed-2-0-pro-260215,411.854,411.657,1.000478553747416,True,True,,benchmark/results/ablation_artifacts/prompt/P3_SCHEMA_STATS/q7
+prompt,P4_RULES,q7,workloads/tpcds/sf1/queries_10/q7.sql,doubao-seed-2-0-pro-260215,411.854,423.883,0.9716218862280394,True,True,,benchmark/results/ablation_artifacts/prompt/P4_RULES/q7
+reasoning,R0_DIRECT,q7,workloads/tpcds/sf1/queries_10/q7.sql,doubao-seed-2-0-pro-260215,411.854,414.27,0.9941680546503489,True,True,,benchmark/results/ablation_artifacts/reasoning/R0_DIRECT/q7
+reasoning,R1_COT_DELIM,q7,workloads/tpcds/sf1/queries_10/q7.sql,doubao-seed-2-0-pro-260215,411.854,419.189,0.9825019263387159,True,True,,benchmark/results/ablation_artifacts/reasoning/R1_COT_DELIM/q7
+reasoning,R2_TWO_PASS,q7,workloads/tpcds/sf1/queries_10/q7.sql,doubao-seed-2-0-pro-260215,411.854,436.955,0.9425547253149638,True,True,,benchmark/results/ablation_artifacts/reasoning/R2_TWO_PASS/q7
+prompt,P0_BASE,q8,workloads/tpcds/sf1/queries_10/q8.sql,doubao-seed-2-0-pro-260215,165.16,149.726,1.1030816291091727,True,True,,benchmark/results/ablation_artifacts/prompt/P0_BASE/q8
+prompt,P1_ENGINE,q8,workloads/tpcds/sf1/queries_10/q8.sql,doubao-seed-2-0-pro-260215,165.16,149.683,1.1033985155294856,True,True,,benchmark/results/ablation_artifacts/prompt/P1_ENGINE/q8
+prompt,P2_SCHEMA_MIN,q8,workloads/tpcds/sf1/queries_10/q8.sql,doubao-seed-2-0-pro-260215,165.16,152.919,1.0800489147849515,True,True,,benchmark/results/ablation_artifacts/prompt/P2_SCHEMA_MIN/q8
+prompt,P3_SCHEMA_STATS,q8,workloads/tpcds/sf1/queries_10/q8.sql,doubao-seed-2-0-pro-260215,165.16,156.036,1.0584736855597425,True,True,,benchmark/results/ablation_artifacts/prompt/P3_SCHEMA_STATS/q8
+prompt,P4_RULES,q8,workloads/tpcds/sf1/queries_10/q8.sql,doubao-seed-2-0-pro-260215,165.16,165.823,0.9960017609137453,True,True,,benchmark/results/ablation_artifacts/prompt/P4_RULES/q8
+reasoning,R0_DIRECT,q8,workloads/tpcds/sf1/queries_10/q8.sql,doubao-seed-2-0-pro-260215,165.16,156.419,1.055881958074147,True,True,,benchmark/results/ablation_artifacts/reasoning/R0_DIRECT/q8
+reasoning,R1_COT_DELIM,q8,workloads/tpcds/sf1/queries_10/q8.sql,doubao-seed-2-0-pro-260215,165.16,148.532,1.1119489402956937,True,True,,benchmark/results/ablation_artifacts/reasoning/R1_COT_DELIM/q8
+reasoning,R2_TWO_PASS,q8,workloads/tpcds/sf1/queries_10/q8.sql,doubao-seed-2-0-pro-260215,165.16,,,True,False,"syntax error at or near ""V1""
+LINE 1: EXPLAIN (ANALYZE, FORMAT JSON) WITH MATERIALIZED V1 AS (
+                                                         ^",benchmark/results/ablation_artifacts/reasoning/R2_TWO_PASS/q8
+prompt,P0_BASE,q9,workloads/tpcds/sf1/queries_10/q9.sql,doubao-seed-2-0-pro-260215,1132.473,322.622,3.510216290271587,True,True,,benchmark/results/ablation_artifacts/prompt/P0_BASE/q9
+prompt,P1_ENGINE,q9,workloads/tpcds/sf1/queries_10/q9.sql,doubao-seed-2-0-pro-260215,1132.473,321.839,3.5187562725462107,True,True,,benchmark/results/ablation_artifacts/prompt/P1_ENGINE/q9
+prompt,P2_SCHEMA_MIN,q9,workloads/tpcds/sf1/queries_10/q9.sql,doubao-seed-2-0-pro-260215,1132.473,444.307,2.548852482630253,True,True,,benchmark/results/ablation_artifacts/prompt/P2_SCHEMA_MIN/q9
+prompt,P3_SCHEMA_STATS,q9,workloads/tpcds/sf1/queries_10/q9.sql,doubao-seed-2-0-pro-260215,1132.473,324.272,3.492355183302906,True,True,,benchmark/results/ablation_artifacts/prompt/P3_SCHEMA_STATS/q9
+prompt,P4_RULES,q9,workloads/tpcds/sf1/queries_10/q9.sql,doubao-seed-2-0-pro-260215,1132.473,321.443,3.523091185684554,True,True,,benchmark/results/ablation_artifacts/prompt/P4_RULES/q9
+reasoning,R0_DIRECT,q9,workloads/tpcds/sf1/queries_10/q9.sql,doubao-seed-2-0-pro-260215,1132.473,269.536,4.201564911551704,True,True,,benchmark/results/ablation_artifacts/reasoning/R0_DIRECT/q9
+reasoning,R1_COT_DELIM,q9,workloads/tpcds/sf1/queries_10/q9.sql,doubao-seed-2-0-pro-260215,1132.473,314.688,3.5987168242830996,True,True,,benchmark/results/ablation_artifacts/reasoning/R1_COT_DELIM/q9
+reasoning,R2_TWO_PASS,q9,workloads/tpcds/sf1/queries_10/q9.sql,doubao-seed-2-0-pro-260215,1132.473,313.878,3.6080037466786457,True,True,,benchmark/results/ablation_artifacts/reasoning/R2_TWO_PASS/q9
+prompt,P0_BASE,q10,workloads/tpcds/sf1/queries_10/q10.sql,doubao-seed-2-0-pro-260215,5705.036,258.858,22.03924931815899,True,True,,benchmark/results/ablation_artifacts/prompt/P0_BASE/q10
+prompt,P1_ENGINE,q10,workloads/tpcds/sf1/queries_10/q10.sql,doubao-seed-2-0-pro-260215,5705.036,261.778,21.79341273903842,True,True,,benchmark/results/ablation_artifacts/prompt/P1_ENGINE/q10
+prompt,P2_SCHEMA_MIN,q10,workloads/tpcds/sf1/queries_10/q10.sql,doubao-seed-2-0-pro-260215,5705.036,260.354,21.912611290781015,True,True,,benchmark/results/ablation_artifacts/prompt/P2_SCHEMA_MIN/q10
+prompt,P3_SCHEMA_STATS,q10,workloads/tpcds/sf1/queries_10/q10.sql,doubao-seed-2-0-pro-260215,5705.036,613.414,9.300465916982658,True,True,,benchmark/results/ablation_artifacts/prompt/P3_SCHEMA_STATS/q10
+prompt,P4_RULES,q10,workloads/tpcds/sf1/queries_10/q10.sql,doubao-seed-2-0-pro-260215,5705.036,5178.536,1.1016696610779573,True,True,,benchmark/results/ablation_artifacts/prompt/P4_RULES/q10
+reasoning,R0_DIRECT,q10,workloads/tpcds/sf1/queries_10/q10.sql,doubao-seed-2-0-pro-260215,5705.036,,,True,False,canceling statement due to statement timeout,benchmark/results/ablation_artifacts/reasoning/R0_DIRECT/q10
+reasoning,R1_COT_DELIM,q10,workloads/tpcds/sf1/queries_10/q10.sql,doubao-seed-2-0-pro-260215,5705.036,471.723,12.094038238542534,True,True,,benchmark/results/ablation_artifacts/reasoning/R1_COT_DELIM/q10
+reasoning,R2_TWO_PASS,q10,workloads/tpcds/sf1/queries_10/q10.sql,doubao-seed-2-0-pro-260215,5705.036,478.148,11.931527476848172,True,True,,benchmark/results/ablation_artifacts/reasoning/R2_TWO_PASS/q10
+prompt,P0_BASE,q12,workloads/tpcds/sf1/queries_10/q12.sql,doubao-seed-2-0-pro-260215,57.459,57.766,0.9946854551120037,True,True,,benchmark/results/ablation_artifacts/prompt/P0_BASE/q12
+prompt,P1_ENGINE,q12,workloads/tpcds/sf1/queries_10/q12.sql,doubao-seed-2-0-pro-260215,57.459,45.68,1.2578590192644483,True,True,,benchmark/results/ablation_artifacts/prompt/P1_ENGINE/q12
+prompt,P2_SCHEMA_MIN,q12,workloads/tpcds/sf1/queries_10/q12.sql,doubao-seed-2-0-pro-260215,57.459,45.231,1.2703455594614312,True,True,,benchmark/results/ablation_artifacts/prompt/P2_SCHEMA_MIN/q12
+prompt,P3_SCHEMA_STATS,q12,workloads/tpcds/sf1/queries_10/q12.sql,doubao-seed-2-0-pro-260215,57.459,44.3,1.2970428893905193,True,True,,benchmark/results/ablation_artifacts/prompt/P3_SCHEMA_STATS/q12
+prompt,P4_RULES,q12,workloads/tpcds/sf1/queries_10/q12.sql,doubao-seed-2-0-pro-260215,57.459,56.39,1.0189572619258733,True,True,,benchmark/results/ablation_artifacts/prompt/P4_RULES/q12
+reasoning,R0_DIRECT,q12,workloads/tpcds/sf1/queries_10/q12.sql,doubao-seed-2-0-pro-260215,57.459,58.621,0.9801777520001365,True,True,,benchmark/results/ablation_artifacts/reasoning/R0_DIRECT/q12
+reasoning,R1_COT_DELIM,q12,workloads/tpcds/sf1/queries_10/q12.sql,doubao-seed-2-0-pro-260215,57.459,44.606,1.288145092588441,True,True,,benchmark/results/ablation_artifacts/reasoning/R1_COT_DELIM/q12
+reasoning,R2_TWO_PASS,q12,workloads/tpcds/sf1/queries_10/q12.sql,doubao-seed-2-0-pro-260215,57.459,57.754,0.9948921286837277,True,True,,benchmark/results/ablation_artifacts/reasoning/R2_TWO_PASS/q12

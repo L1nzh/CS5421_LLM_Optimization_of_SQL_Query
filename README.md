@@ -51,16 +51,16 @@ print(out)
 
 ### 变体设计
 
-- Prompt Engineering（P0~P4）：只改变 prompt 信息量与约束
-  - P0_BASE：基础约束（只输出 SQL、语义等价、PG 语法）
-  - P1_ENGINE：明确引擎与版本（PostgreSQL 16）+ 禁止非 PG 方言
-  - P2_SCHEMA_MIN：注入精简 schema（仅 query 涉及表/列）
-  - P3_SCHEMA_STATS：注入 schema + 统计信息（近似行数）
-  - P4_RULES：注入更规则化的提示（2–3 条核心规则）
-- Reasoning Engineering（R0~R2）：只改变推理引导方式
-  - R0_DIRECT：直接输出最终 SQL
-  - R1_COT_DELIM：允许推理，但要求最终 SQL 放在 `<SQL>...</SQL>`，便于抽取执行
-  - R2_TWO_PASS：两阶段（先 plan，再 apply plan 输出 SQL）
+- Prompt Engineering（P0\~P4）：只改变 prompt 信息量与约束
+  - P0\_BASE：基础约束（只输出 SQL、语义等价、PG 语法）
+  - P1\_ENGINE：明确引擎与版本（PostgreSQL 16）+ 禁止非 PG 方言
+  - P2\_SCHEMA\_MIN：注入精简 schema（仅 query 涉及表/列）
+  - P3\_SCHEMA\_STATS：注入 schema + 统计信息（近似行数）
+  - P4\_RULES：注入更规则化的提示（2–3 条核心规则）
+- Reasoning Engineering（R0\~R2）：只改变推理引导方式
+  - R0\_DIRECT：直接输出最终 SQL
+  - R1\_COT\_DELIM：允许推理，但要求最终 SQL 放在 `<SQL>...</SQL>`，便于抽取执行
+  - R2\_TWO\_PASS：两阶段（先 plan，再 apply plan 输出 SQL）
 
 ### 运行（PostgreSQL 本地 benchmark）
 
@@ -95,3 +95,7 @@ python3 benchmark/postgres/generate_ablation_report.py \
 说明：
 
 - 若你已经有 `benchmark/results/ablation_artifacts/`（模型 raw/sql 产物），可用 `--execute-only` 仅重跑 EXPLAIN 计时，避免再次调用模型（示例见 `benchmark/postgres/README.md`）。
+  ```shellscript
+  ```
+
+postgresql

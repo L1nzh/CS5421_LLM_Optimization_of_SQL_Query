@@ -1,0 +1,22 @@
+SELECT
+    i_item_id,
+    i_item_desc,
+    i_category,
+    i_class,
+    i_current_price,
+    SUM(ws_ext_sales_price) AS itemrevenue,
+    SUM(ws_ext_sales_price) * 100 / SUM(SUM(ws_ext_sales_price)) OVER (PARTITION BY i_class) AS revenueratio
+FROM (
+    SELECT d_date_sk
+    FROM date_dim
+    WHERE d_date BETWEEN CAST('2001-01-12' AS DATE) AND (CAST('2001-01-12' AS DATE) + INTERVAL '30 days')
+) dd
+INNER JOIN web_sales ws ON ws.ws_sold_date_sk = dd.d_date_sk
+INNER JOIN (
+    SELECT i_item_sk, i_item_id, i_item_desc, i_category, i_class, i_current_price
+    FROM item
+    WHERE i_category IN ('Jewelry', 'Sports', 'Books')
+) i ON ws.ws_item_sk = i.i_item_sk
+GROUP BY i_item_id, i_item_desc, i_category, i_class, i_current_price
+ORDER BY i_category, i_class, i_item_id, i_item_desc, revenueratio
+LIMIT 100

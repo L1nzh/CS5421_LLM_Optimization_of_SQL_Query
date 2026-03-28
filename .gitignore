@@ -17,9 +17,9 @@ datasets/tpcds/
 workloads/tpcds/
 
 # Benchmark outputs
-benchmark/results/
-benchmark/postgres/prompt_reasoning_report.md
-benchmark/postgres/report.md
+# benchmark/results/
+# benchmark/postgres/prompt_reasoning_report.md
+# benchmark/postgres/report.md
 
 # TPC-DS tools build outputs
 third_party/

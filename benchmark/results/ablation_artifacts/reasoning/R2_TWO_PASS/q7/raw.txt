@@ -1,0 +1,27 @@
+CREATE INDEX IF NOT EXISTS idx_customer_demographics_partial ON customer_demographics (cd_demo_sk) WHERE cd_gender = 'M' AND cd_marital_status = 'S' AND cd_education_status = 'College';
+CREATE INDEX IF NOT EXISTS idx_promotion_partial ON promotion (p_promo_sk) WHERE p_channel_email = 'N' OR p_channel_event = 'N';
+CREATE INDEX IF NOT EXISTS idx_date_dim_year_date_sk ON date_dim (d_year, d_date_sk);
+CREATE INDEX IF NOT EXISTS idx_store_sales_covering ON store_sales (ss_sold_date_sk, ss_cdemo_sk, ss_promo_sk, ss_item_sk) INCLUDE (ss_quantity, ss_list_price, ss_coupon_amt, ss_sales_price);
+CREATE INDEX IF NOT EXISTS idx_item_covering ON item (i_item_sk, i_item_id);
+ANALYZE customer_demographics, promotion, date_dim, store_sales, item;
+
+SELECT
+  i_item_id,
+  avg(ss_quantity) agg1,
+  avg(ss_list_price) agg2,
+  avg(ss_coupon_amt) agg3,
+  avg(ss_sales_price) agg4
+FROM date_dim
+INNER JOIN customer_demographics ON TRUE
+INNER JOIN promotion ON TRUE
+INNER JOIN store_sales ON ss_sold_date_sk = d_date_sk AND ss_cdemo_sk = cd_demo_sk AND ss_promo_sk = p_promo_sk
+INNER JOIN item ON ss_item_sk = i_item_sk
+WHERE
+  cd_gender = 'M' AND
+  cd_marital_status = 'S' AND
+  cd_education_status = 'College' AND
+  (p_channel_email = 'N' OR p_channel_event = 'N') AND
+  d_year = 2000
+GROUP BY i_item_id
+ORDER BY i_item_id
+LIMIT 100;

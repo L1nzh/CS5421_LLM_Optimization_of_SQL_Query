@@ -1,0 +1,44 @@
+You are a PostgreSQL 16 SQL optimizer.
+Target engine: PostgreSQL 16.
+Apply the optimization plan to rewrite the SQL.
+Constraints:
+- Return only ONE SQL query.
+- Do NOT output explanations or markdown.
+- Preserve result set exactly (columns, ordering, LIMIT).
+- Use only standard PostgreSQL syntax (no hints).
+
+Optimization plan:
+1. Create a covering index on date_dim on (d_year, d_date_sk) to quickly retrieve all date keys for the year 2000 without full table access.
+2. Create a covering index on store_returns on (sr_returned_date_sk, sr_customer_sk, sr_store_sk) including sr_return_amt to enable index-only scans for the customer_total_return CTE aggregation, eliminating full scans on store_returns.
+3. Create a covering index on store on (s_state, s_store_sk) to quickly fetch all store keys for Tennessee stores, and enable early pushdown of the s_state = 'TN' filter.
+4. Create a covering index on customer on (c_customer_sk) including c_customer_id to enable index-only scans when joining to the customer table to retrieve customer IDs.
+5. Decorrelate the per-store average return subquery by pre-aggregating average total return per store from the customer_total_return CTE once, instead of executing the subquery for every row from the outer ctr1 dataset.
+6. Materialize the customer_total_return CTE to avoid recomputing the store returns aggregation twice (once for the outer query and once for the per-store average calculation).
+7. Optimize join order to start with the filtered small dataset of Tennessee stores first, then join to the customer_total_return CTE, to reduce the number of rows processed in subsequent steps early.
+8. Use hash aggregation for all GROUP BY operations (both the CTE aggregation and the per-store average calculation) to avoid expensive sort operations for large datasets.
+9. Enable PostgreSQL 16 incremental sort optimization for the final ORDER BY c_customer_id step to reduce sort overhead before applying the LIMIT 100 clause.
+10. Push down all applicable filters as early as possible, including restricting customer_total_return rows to only those associated with Tennessee stores before comparing against the per-store average threshold.
+
+Schema (subset):
+(none)
+
+SQL:
+WITH customer_total_return AS
+( SELECT
+    sr_customer_sk AS ctr_customer_sk,
+    sr_store_sk AS ctr_store_sk,
+    sum(sr_return_amt) AS ctr_total_return
+  FROM store_returns, date_dim
+  WHERE sr_returned_date_sk = d_date_sk AND d_year = 2000
+  GROUP BY sr_customer_sk, sr_store_sk)
+SELECT c_customer_id
+FROM customer_total_return ctr1, store, customer
+WHERE ctr1.ctr_total_return >
+  (SELECT avg(ctr_total_return) * 1.2
+  FROM customer_total_return ctr2
+  WHERE ctr1.ctr_store_sk = ctr2.ctr_store_sk)
+  AND s_store_sk = ctr1.ctr_store_sk
+  AND s_state = 'TN'
+  AND ctr1.ctr_customer_sk = c_customer_sk
+ORDER BY c_customer_id
+LIMIT 100

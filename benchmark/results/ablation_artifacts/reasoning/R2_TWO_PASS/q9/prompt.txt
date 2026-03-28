@@ -1,0 +1,71 @@
+You are a PostgreSQL 16 SQL optimizer.
+Target engine: PostgreSQL 16.
+Apply the optimization plan to rewrite the SQL.
+Constraints:
+- Return only ONE SQL query.
+- Do NOT output explanations or markdown.
+- Preserve result set exactly (columns, ordering, LIMIT).
+- Use only standard PostgreSQL syntax (no hints).
+
+Optimization plan:
+1. Eliminate redundant repeated scans of the store_sales table by replacing all 15 separate subquery scans with a single pass of store_sales that calculates the required count, average ss_ext_discount_amt, and average ss_net_paid for each of the 5 ss_quantity buckets in one aggregation operation.
+2. Create a covering B-tree index on the store_sales table with ss_quantity as the leading column, and ss_ext_discount_amt, ss_net_paid as included columns to enable an index-only scan, removing the need to access the base store_sales table entirely.
+3. Remove the unnecessary access to the reason table: the outer query only uses the reason table to generate a single output row and references no columns from reason, so directly return the precomputed bucket values as a single row without querying the reason table.
+4. Push bucket classification into the initial aggregation step: assign each store_sales row to its corresponding ss_quantity bucket via a classification expression during the initial scan, then group by the bucket identifier to compute all required aggregates per bucket in one grouping operation, avoiding separate filter evaluations for each bucket range.
+5. Apply the bucket-specific count threshold checks (to select between the two average values) only once per bucket during the final projection step, after all aggregates are precomputed, to eliminate repeated aggregate calculations.
+6. Tune PostgreSQL parameters (including work_mem and max_parallel_workers_per_gather) to enable parallel execution of the store_sales scan and aggregation step, leveraging PostgreSQL 16's parallel query support to speed up processing for large store_sales datasets.
+7. If this query runs on a frequent schedule, create a materialized view to precompute and store the bucket aggregates, refreshed on an appropriate cadence, to eliminate the need to scan store_sales for each query execution.
+8. Run ANALYZE on the store_sales table to ensure up-to-date statistics for the ss_quantity column, allowing the query planner to accurately estimate row counts per bucket and select the optimal access and aggregation plan.
+
+Schema (subset):
+(none)
+
+SQL:
+SELECT
+  CASE WHEN (SELECT count(*)
+  FROM store_sales
+  WHERE ss_quantity BETWEEN 1 AND 20) > 62316685
+    THEN (SELECT avg(ss_ext_discount_amt)
+    FROM store_sales
+    WHERE ss_quantity BETWEEN 1 AND 20)
+  ELSE (SELECT avg(ss_net_paid)
+  FROM store_sales
+  WHERE ss_quantity BETWEEN 1 AND 20) END bucket1,
+  CASE WHEN (SELECT count(*)
+  FROM store_sales
+  WHERE ss_quantity BETWEEN 21 AND 40) > 19045798
+    THEN (SELECT avg(ss_ext_discount_amt)
+    FROM store_sales
+    WHERE ss_quantity BETWEEN 21 AND 40)
+  ELSE (SELECT avg(ss_net_paid)
+  FROM store_sales
+  WHERE ss_quantity BETWEEN 21 AND 40) END bucket2,
+  CASE WHEN (SELECT count(*)
+  FROM store_sales
+  WHERE ss_quantity BETWEEN 41 AND 60) > 365541424
+    THEN (SELECT avg(ss_ext_discount_amt)
+    FROM store_sales
+    WHERE ss_quantity BETWEEN 41 AND 60)
+  ELSE (SELECT avg(ss_net_paid)
+  FROM store_sales
+  WHERE ss_quantity BETWEEN 41 AND 60) END bucket3,
+  CASE WHEN (SELECT count(*)
+  FROM store_sales
+  WHERE ss_quantity BETWEEN 61 AND 80) > 216357808
+    THEN (SELECT avg(ss_ext_discount_amt)
+    FROM store_sales
+    WHERE ss_quantity BETWEEN 61 AND 80)
+  ELSE (SELECT avg(ss_net_paid)
+  FROM store_sales
+  WHERE ss_quantity BETWEEN 61 AND 80) END bucket4,
+  CASE WHEN (SELECT count(*)
+  FROM store_sales
+  WHERE ss_quantity BETWEEN 81 AND 100) > 184483884
+    THEN (SELECT avg(ss_ext_discount_amt)
+    FROM store_sales
+    WHERE ss_quantity BETWEEN 81 AND 100)
+  ELSE (SELECT avg(ss_net_paid)
+  FROM store_sales
+  WHERE ss_quantity BETWEEN 81 AND 100) END bucket5
+FROM reason
+WHERE r_reason_sk = 1

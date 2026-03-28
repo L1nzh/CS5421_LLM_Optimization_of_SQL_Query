@@ -1,0 +1,38 @@
+You are a PostgreSQL 16 SQL optimizer.
+Target engine: PostgreSQL 16.
+Apply the optimization plan to rewrite the SQL.
+Constraints:
+- Return only ONE SQL query.
+- Do NOT output explanations or markdown.
+- Preserve result set exactly (columns, ordering, LIMIT).
+- Use only standard PostgreSQL syntax (no hints).
+
+Optimization plan:
+1. Create a covering index on the `item` table leading with the filtered column `i_manufact_id`, including join key `i_item_sk` and required grouping/projection columns `i_brand` and `i_brand_id` to enable fast index-only scans for the filtered item subset.
+2. Create a covering index on the `date_dim` table leading with the filtered column `d_moy`, including join key `d_date_sk` and required grouping column `d_year` to enable fast index-only scans for all November date records.
+3. Create a composite covering index on the `store_sales` fact table leading with join keys `ss_item_sk` and `ss_sold_date_sk`, including aggregated column `ss_ext_sales_price` to eliminate table lookups via index-only scans for matching sales records.
+4. If `store_sales` is range-partitioned by `ss_sold_date_sk`, enable automatic partition pruning to eliminate all partitions that do not contain November date records, reducing scanned data volume.
+5. Refresh statistics for all three tables via ANALYZE to help the query planner accurately estimate filtered row counts, select optimal join order, and pick appropriate join types.
+6. Guide the planner to use an optimal join order that starts with the smallest filtered datasets first: first pull the subset of items matching `i_manufact_id = 128`, then pull the subset of November dates, then join both results to the `store_sales` table to retrieve only relevant sales records.
+7. Enable early partial aggregation on the `store_sales` table to pre-aggregate `ss_ext_sales_price` by `ss_item_sk` and `ss_sold_date_sk` before joining to dimension tables, reducing the number of rows passed to later join and final aggregation steps.
+8. Leverage PostgreSQL 16's top-N heapsort optimization for the final ORDER BY + LIMIT 100 clause, avoiding a full sort of all aggregated rows by only maintaining the top 100 records during sorting to cut memory usage and sort time.
+9. Adjust parallel query configuration parameters (e.g., `max_parallel_workers_per_gather`, `min_parallel_table_scan_size`) to enable parallel scans for `store_sales` if the volume of matching sales records is large, utilizing multiple CPU cores to speed up data retrieval and aggregation.
+10. Prioritize hash joins for joins between the filtered dimension subsets and the `store_sales` intermediate result if matching sales record volume is high, as hash joins are more efficient for large datasets than nested loop joins in this scenario.
+
+Schema (subset):
+(none)
+
+SQL:
+SELECT
+  dt.d_year,
+  item.i_brand_id brand_id,
+  item.i_brand brand,
+  SUM(ss_ext_sales_price) sum_agg
+FROM date_dim dt, store_sales, item
+WHERE dt.d_date_sk = store_sales.ss_sold_date_sk
+  AND store_sales.ss_item_sk = item.i_item_sk
+  AND item.i_manufact_id = 128
+  AND dt.d_moy = 11
+GROUP BY dt.d_year, item.i_brand, item.i_brand_id
+ORDER BY dt.d_year, sum_agg DESC, brand_id
+LIMIT 100

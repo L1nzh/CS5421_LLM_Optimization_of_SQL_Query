@@ -1,0 +1,121 @@
+WITH date_range AS (
+    SELECT d_date_sk
+    FROM date_dim
+    WHERE d_date BETWEEN '2000-08-23'::DATE AND '2000-08-23'::DATE + INTERVAL '14 days'
+),
+ss_agg AS (
+    SELECT ss_store_sk AS store_sk,
+           SUM(ss_ext_sales_price) AS sales,
+           SUM(ss_net_profit) AS profit
+    FROM store_sales
+    WHERE ss_sold_date_sk IN (SELECT d_date_sk FROM date_range)
+    GROUP BY ss_store_sk
+),
+sr_agg AS (
+    SELECT sr_store_sk AS store_sk,
+           SUM(sr_return_amt) AS returns,
+           SUM(sr_net_loss) AS profit_loss
+    FROM store_returns
+    WHERE sr_returned_date_sk IN (SELECT d_date_sk FROM date_range)
+    GROUP BY sr_store_sk
+),
+ssr AS (
+    SELECT s_store_id,
+           COALESCE(ss.sales, 0::DECIMAL(7,2)) AS sales,
+           COALESCE(ss.profit, 0::DECIMAL(7,2)) AS profit,
+           COALESCE(sr.returns, 0::DECIMAL(7,2)) AS returns,
+           COALESCE(sr.profit_loss, 0::DECIMAL(7,2)) AS profit_loss
+    FROM store s
+    LEFT JOIN ss_agg ss ON s.s_store_sk = ss.store_sk
+    LEFT JOIN sr_agg sr ON s.s_store_sk = sr.store_sk
+    WHERE ss.store_sk IS NOT NULL OR sr.store_sk IS NOT NULL
+),
+cs_agg AS (
+    SELECT cs_catalog_page_sk AS page_sk,
+           SUM(cs_ext_sales_price) AS sales,
+           SUM(cs_net_profit) AS profit
+    FROM catalog_sales
+    WHERE cs_sold_date_sk IN (SELECT d_date_sk FROM date_range)
+    GROUP BY cs_catalog_page_sk
+),
+cr_agg AS (
+    SELECT cr_catalog_page_sk AS page_sk,
+           SUM(cr_return_amount) AS returns,
+           SUM(cr_net_loss) AS profit_loss
+    FROM catalog_returns
+    WHERE cr_returned_date_sk IN (SELECT d_date_sk FROM date_range)
+    GROUP BY cr_catalog_page_sk
+),
+csr AS (
+    SELECT cp_catalog_page_id,
+           COALESCE(cs.sales, 0::DECIMAL(7,2)) AS sales,
+           COALESCE(cs.profit, 0::DECIMAL(7,2)) AS profit,
+           COALESCE(cr.returns, 0::DECIMAL(7,2)) AS returns,
+           COALESCE(cr.profit_loss, 0::DECIMAL(7,2)) AS profit_loss
+    FROM catalog_page cp
+    LEFT JOIN cs_agg cs ON cp.cp_catalog_page_sk = cs.page_sk
+    LEFT JOIN cr_agg cr ON cp.cp_catalog_page_sk = cr.page_sk
+    WHERE cs.page_sk IS NOT NULL OR cr.page_sk IS NOT NULL
+),
+ws_agg AS (
+    SELECT ws_web_site_sk AS wsr_web_site_sk,
+           SUM(ws_ext_sales_price) AS sales,
+           SUM(ws_net_profit) AS profit
+    FROM web_sales
+    WHERE ws_sold_date_sk IN (SELECT d_date_sk FROM date_range)
+    GROUP BY ws_web_site_sk
+),
+wr_agg AS (
+    SELECT ws_web_site_sk AS wsr_web_site_sk,
+           SUM(wr_return_amt) AS returns,
+           SUM(wr_net_loss) AS profit_loss
+    FROM web_returns wr
+    LEFT JOIN web_sales ws ON wr.wr_item_sk = ws.ws_item_sk AND wr.wr_order_number = ws.ws_order_number
+    WHERE wr.wr_returned_date_sk IN (SELECT d_date_sk FROM date_range)
+    GROUP BY ws_web_site_sk
+),
+wsr AS (
+    SELECT web_site_id,
+           COALESCE(ws.sales, 0::DECIMAL(7,2)) AS sales,
+           COALESCE(ws.profit, 0::DECIMAL(7,2)) AS profit,
+           COALESCE(wr.returns, 0::DECIMAL(7,2)) AS returns,
+           COALESCE(wr.profit_loss, 0::DECIMAL(7,2)) AS profit_loss
+    FROM web_site ws
+    LEFT JOIN ws_agg wsa ON ws.web_site_sk = wsa.wsr_web_site_sk
+    LEFT JOIN wr_agg wra ON ws.web_site_sk = wra.wsr_web_site_sk
+    WHERE wsa.wsr_web_site_sk IS NOT NULL OR wra.wsr_web_site_sk IS NOT NULL
+)
+SELECT
+  channel,
+  id,
+  sum(sales) AS sales,
+  sum(returns) AS returns,
+  sum(profit) AS profit
+FROM
+  (SELECT
+     'store channel' AS channel,
+     concat('store', s_store_id) AS id,
+     sales,
+     returns,
+     (profit - profit_loss) AS profit
+   FROM ssr
+   UNION ALL
+   SELECT
+     'catalog channel' AS channel,
+     concat('catalog_page', cp_catalog_page_id) AS id,
+     sales,
+     returns,
+     (profit - profit_loss) AS profit
+   FROM csr
+   UNION ALL
+   SELECT
+     'web channel' AS channel,
+     concat('web_site', web_site_id) AS id,
+     sales,
+     returns,
+     (profit - profit_loss) AS profit
+   FROM wsr
+  ) x
+GROUP BY ROLLUP (channel, id)
+ORDER BY channel, id
+LIMIT 100

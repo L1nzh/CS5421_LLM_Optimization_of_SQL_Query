@@ -1,0 +1,40 @@
+WITH wscs AS (
+    SELECT ws_sold_date_sk sold_date_sk, ws_ext_sales_price sales_price FROM web_sales
+    UNION ALL
+    SELECT cs_sold_date_sk sold_date_sk, cs_ext_sales_price sales_price FROM catalog_sales
+),
+weekly_sales AS (
+    SELECT
+        d.d_week_seq,
+        SUM(CASE WHEN d.d_day_name = 'Sunday' THEN w.sales_price END) sun_sales,
+        SUM(CASE WHEN d.d_day_name = 'Monday' THEN w.sales_price END) mon_sales,
+        SUM(CASE WHEN d.d_day_name = 'Tuesday' THEN w.sales_price END) tue_sales,
+        SUM(CASE WHEN d.d_day_name = 'Wednesday' THEN w.sales_price END) wed_sales,
+        SUM(CASE WHEN d.d_day_name = 'Thursday' THEN w.sales_price END) thu_sales,
+        SUM(CASE WHEN d.d_day_name = 'Friday' THEN w.sales_price END) fri_sales,
+        SUM(CASE WHEN d.d_day_name = 'Saturday' THEN w.sales_price END) sat_sales
+    FROM wscs w
+    INNER JOIN date_dim d ON d.d_date_sk = w.sold_date_sk
+    WHERE d.d_year IN (2001, 2002)
+    GROUP BY d.d_week_seq
+),
+week_year_map AS (
+    SELECT DISTINCT d_week_seq, d_year
+    FROM date_dim
+    WHERE d_year IN (2001, 2002)
+)
+SELECT
+    wy1.d_week_seq AS d_week_seq1,
+    round(ws1.sun_sales / ws2.sun_sales, 2),
+    round(ws1.mon_sales / ws2.mon_sales, 2),
+    round(ws1.tue_sales / ws2.tue_sales, 2),
+    round(ws1.wed_sales / ws2.wed_sales, 2),
+    round(ws1.thu_sales / ws2.thu_sales, 2),
+    round(ws1.fri_sales / ws2.fri_sales, 2),
+    round(ws1.sat_sales / ws2.sat_sales, 2)
+FROM week_year_map wy1
+INNER JOIN weekly_sales ws1 ON wy1.d_week_seq = ws1.d_week_seq
+INNER JOIN week_year_map wy2 ON wy1.d_week_seq = wy2.d_week_seq - 53
+INNER JOIN weekly_sales ws2 ON wy2.d_week_seq = ws2.d_week_seq
+WHERE wy1.d_year = 2001 AND wy2.d_year = 2002
+ORDER BY wy1.d_week_seq

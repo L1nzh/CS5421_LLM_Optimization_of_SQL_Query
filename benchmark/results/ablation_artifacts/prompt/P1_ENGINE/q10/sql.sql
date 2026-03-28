@@ -1,0 +1,55 @@
+WITH ss_eligible AS (
+    SELECT DISTINCT ss_customer_sk AS c_customer_sk
+    FROM store_sales
+    JOIN date_dim ON ss_sold_date_sk = d_date_sk
+    WHERE d_year = 2002 AND d_moy BETWEEN 1 AND 4
+),
+ws_cs_eligible AS (
+    SELECT DISTINCT ws_bill_customer_sk AS c_customer_sk
+    FROM web_sales
+    JOIN date_dim ON ws_sold_date_sk = d_date_sk
+    WHERE d_year = 2002 AND d_moy BETWEEN 1 AND 4
+    UNION
+    SELECT DISTINCT cs_ship_customer_sk AS c_customer_sk
+    FROM catalog_sales
+    JOIN date_dim ON cs_sold_date_sk = d_date_sk
+    WHERE d_year = 2002 AND d_moy BETWEEN 1 AND 4
+)
+SELECT
+  cd.cd_gender,
+  cd.cd_marital_status,
+  cd.cd_education_status,
+  count(*) cnt1,
+  cd.cd_purchase_estimate,
+  count(*) cnt2,
+  cd.cd_credit_rating,
+  count(*) cnt3,
+  cd.cd_dep_count,
+  count(*) cnt4,
+  cd.cd_dep_employed_count,
+  count(*) cnt5,
+  cd.cd_dep_college_count,
+  count(*) cnt6
+FROM customer c
+INNER JOIN customer_address ca ON c.c_current_addr_sk = ca.ca_address_sk
+INNER JOIN customer_demographics cd ON cd.cd_demo_sk = c.c_current_cdemo_sk
+INNER JOIN ss_eligible s ON c.c_customer_sk = s.c_customer_sk
+INNER JOIN ws_cs_eligible w ON c.c_customer_sk = w.c_customer_sk
+WHERE ca.ca_county IN ('Rush County', 'Toole County', 'Jefferson County', 'Dona Ana County', 'La Porte County')
+GROUP BY cd.cd_gender,
+  cd.cd_marital_status,
+  cd.cd_education_status,
+  cd.cd_purchase_estimate,
+  cd.cd_credit_rating,
+  cd.cd_dep_count,
+  cd.cd_dep_employed_count,
+  cd.cd_dep_college_count
+ORDER BY cd.cd_gender,
+  cd.cd_marital_status,
+  cd.cd_education_status,
+  cd.cd_purchase_estimate,
+  cd.cd_credit_rating,
+  cd.cd_dep_count,
+  cd.cd_dep_employed_count,
+  cd.cd_dep_college_count
+LIMIT 100

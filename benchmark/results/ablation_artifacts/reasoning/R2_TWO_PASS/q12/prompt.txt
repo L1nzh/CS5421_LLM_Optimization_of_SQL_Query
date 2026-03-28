@@ -1,0 +1,59 @@
+You are a PostgreSQL 16 SQL optimizer.
+Target engine: PostgreSQL 16.
+Apply the optimization plan to rewrite the SQL.
+Constraints:
+- Return only ONE SQL query.
+- Do NOT output explanations or markdown.
+- Preserve result set exactly (columns, ordering, LIMIT).
+- Use only standard PostgreSQL syntax (no hints).
+
+Optimization plan:
+1. Create filter-aligned covering indexes for all tables to enable index-only scans and eliminate table access overhead:
+   - For date_dim: Index on `d_date` including `d_date_sk` to quickly retrieve the 31 relevant date SK values without full table lookup
+   - For item: Partial covering index filtered to the 3 allowed categories (Jewelry, Sports, Books), ordered by `i_category`, `i_class`, `i_item_sk` and including all grouped/selected item attributes to reduce index size and pre-sort rows to match the query's GROUP BY/ORDER BY sequence
+   - For web_sales: Covering index ordered by `ws_sold_date_sk`, `ws_item_sk` including `ws_ext_sales_price` to quickly isolate relevant sales records and retrieve required sales metrics without table access
+2. Enforce optimal join order starting with the smallest filtered datasets: First scan the filtered date_dim (31 rows), join to web_sales to restrict sales to the target date range, then join to the filtered item set to limit results to the 3 allowed categories, minimizing intermediate row counts early in execution
+3. Apply early predicate pushdown: Push the date range filter to date_dim and category filter to item before joining to the web_sales fact table to avoid processing irrelevant rows
+4. Leverage the pre-sorted order from the item index to eliminate expensive full sort operations for both the GROUP BY clause and final ORDER BY clause, using ordered aggregation instead of hash aggregation to reduce memory usage and processing latency
+5. Optimize window function execution: Use the pre-sorted order by `i_class` to compute the partitioned window sum without additional sorting or hashing, processing partitions sequentially as `i_class` values change
+6. Adjust parallel query settings (set `max_parallel_workers_per_gather` to 4-8 based on available resources) to parallelize large web_sales index scans, join operations, and aggregate calculations for large datasets
+7. Refresh table statistics (run ANALYZE on web_sales, item, date_dim if stale) to ensure the query planner has accurate row count estimates to select optimal join and aggregation methods
+8. Enable JIT compilation for the query if processing large row volumes to speed up aggregate and window function arithmetic operations
+9. Use PostgreSQL 16's native incremental sort functionality for any remaining required sorting, to leverage the existing ordered prefix of result rows and reduce sort overhead
+10. Select optimal join methods: Use nested loop joins for the small filtered date_dim and item dimension tables against the larger web_sales fact table, leveraging ordered indexes on web_sales join keys to avoid random I/O; use hash joins only if filtered intermediate row counts are larger than expected, as guided by up-to-date statistics
+
+Schema (subset):
+(none)
+
+SQL:
+select  i_item_id
+      ,i_item_desc 
+      ,i_category 
+      ,i_class 
+      ,i_current_price
+      ,sum(ws_ext_sales_price) as itemrevenue 
+      ,sum(ws_ext_sales_price)*100/sum(sum(ws_ext_sales_price)) over
+          (partition by i_class) as revenueratio
+from	
+	web_sales
+    	,item 
+    	,date_dim
+where 
+	ws_item_sk = i_item_sk 
+  	and i_category in ('Jewelry', 'Sports', 'Books')
+  	and ws_sold_date_sk = d_date_sk
+	and d_date between cast('2001-01-12' as date) 
+				and (cast('2001-01-12' as date) + interval '30 days')
+group by 
+	i_item_id
+        ,i_item_desc 
+        ,i_category
+        ,i_class
+        ,i_current_price
+order by 
+	i_category
+        ,i_class
+        ,i_item_id
+        ,i_item_desc
+        ,revenueratio
+limit 100

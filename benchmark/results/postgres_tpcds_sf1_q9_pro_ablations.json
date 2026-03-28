@@ -1,0 +1,35 @@
+{
+  "generated_at": "2026-03-21T07:18:21.272917+00:00",
+  "engine": "postgresql",
+  "dsn": "postgresql://bench:bench@localhost:5432/tpcds_sf1",
+  "model": "doubao-seed-2-0-pro-260215",
+  "workload_dir": "workloads/tpcds/sf1/queries_10",
+  "query_ids": [
+    1,
+    2,
+    3,
+    6,
+    7,
+    8,
+    9,
+    10,
+    12
+  ],
+  "repeat": 1,
+  "statement_timeout_ms": 300000,
+  "mode": "all",
+  "prompt_variants": [
+    "P0_BASE",
+    "P1_ENGINE",
+    "P2_SCHEMA_MIN",
+    "P3_SCHEMA_STATS",
+    "P4_RULES"
+  ],
+  "reasoning_variants": [
+    "R0_DIRECT",
+    "R1_COT_DELIM",
+    "R2_TWO_PASS"
+  ],
+  "dry_run": true,
+  "results": []
+}
