@@ -1,16 +1,55 @@
 # CS5421-LLM-Optimization-of-SQL-Query
 
+## Multi-Layer Research Pipeline
+
+仓库现在额外提供一个可组合的 8-layer pipeline，用于把 workload preparation、prompt construction、LLM candidate generation、candidate normalization、validation、benchmark、ranking、analysis 串联起来，同时保持各层可独立替换与测试。
+
+主要入口：
+
+- `pipeline/sql_optimization_pipeline.py`
+- `cli/optimization_pipeline_cli.py`
+
+当前实现状态：
+
+- Layer 1：已实现 `FileOrStringWorkloadPreparationLayer`
+- Layer 2：已实现 `DefaultPromptBuilderLayer`
+- Layer 3：支持 Ark 与 OpenAI GPT 模型的 Responses API 生成逻辑
+- Layer 4：已实现 `DefaultCandidateNormalizationLayer`
+- Layer 5：复用现有 validator 作为 `ValidatorValidationGateLayer`
+- Layer 6：提供 PostgreSQL `EXPLAIN ANALYZE` 实现与 placeholder 实现
+- Layer 7：提供基于 speedup 的默认 ranking
+- Layer 8：当前为 summary placeholder，后续可替换为研究分析模块
+
+示例：
+
+```bash
+python -m cli.optimization_pipeline_cli \
+  --raw-query "SELECT * FROM store_sales" \
+  --prompt-strategy P1_ENGINE \
+  --reasoning-mode DIRECT \
+  --candidate-count 3
+```
+
+如果提供 `--dsn`，Layer 5 和 Layer 6 会使用真实数据库进行语义验证与 benchmark；如果不提供，则会走 placeholder 路径，仍然返回统一结构的 ranked output。
+
+Layer-by-layer docs:
+
+- `docs/layers_index.md`
+
 ## Layer 3 — LLM Candidate Generation
 
 本仓库当前先实现 Layer 3：给定输入文本（这里用 SQL 优化任务 prompt），调用 LLM 并解析 Responses API 的结构化响应，最终返回模型输出的文本。
 
-### 支持的模型（火山方舟 Ark）
+### 支持的模型
 
-当前已内置 3 个模型常量（见 `layer3/models.py`）：
+当前已内置 Ark 与 OpenAI 两类模型常量（见 `layer3/models.py`）：
 
 - `doubao-seed-2-0-pro-260215`
 - `doubao-seed-2-0-lite-260215`
 - `doubao-seed-2-0-mini-260215`
+- `gpt-5.4`
+- `gpt-5.4-mini`
+- `gpt-5.4-nano`
 
 ### 环境准备
 
@@ -27,6 +66,12 @@ python -m pip install -r requirements.txt
 
 ```bash
 export ARK_API_KEY="your_api_key_here"
+```
+
+如果使用 OpenAI GPT 模型，例如 `gpt-5.4-nano`，配置：
+
+```bash
+export OPENAI_API_KEY="your_openai_api_key_here"
 ```
 
 ### Quickstart（3 模型 × 3 个 SQL 任务）
