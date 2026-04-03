@@ -256,102 +256,315 @@ def _render_schema_min(tables: list[str], create_table_map: dict[str, str]) -> s
     return "\n".join(lines)
 
 
-def _render_schema_stats(tables: list[str], dsn: str, create_table_map: dict[str, str]) -> str:
-    schema_min = _render_schema_min(tables, create_table_map)
-    est = _fetch_table_row_estimates(dsn, tables)
-    stats_lines = [f"- {t}: approx_rows={est.get(t, 0)}" for t in tables]
-    return "\n".join(
-        [
-            schema_min,
-            "",
-            "Table stats (approx):",
-            *stats_lines,
-        ]
-    ).strip()
+def _render_schema_full_ddl(tables: list[str], create_table_map: dict[str, str]) -> dict[str, dict]:
+    """
+    Parse CREATE TABLE DDL into structured column + constraint info.
+    Returns a dict keyed by table name:
+      {
+        "columns": [{"name": str, "type": str, "nullable": bool}],
+        "primary_key": [col, ...],
+        "unique": [[col, ...], ...],
+        "foreign_keys": [{"cols": [...], "ref_table": str, "ref_cols": [...]}],
+      }
+    """
+    result = {}
+    fk_re = re.compile(
+        r"FOREIGN\s+KEY\s*\(([^)]+)\)\s+REFERENCES\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]+)\)",
+        re.IGNORECASE,
+    )
+    pk_re = re.compile(r"PRIMARY\s+KEY\s*\(([^)]+)\)", re.IGNORECASE)
+    uq_re = re.compile(r"UNIQUE\s*\(([^)]+)\)", re.IGNORECASE)
+
+    for table in tables:
+        ddl = create_table_map.get(table.lower())
+        if not ddl:
+            continue
+
+        columns = []
+        primary_key = []
+        unique_keys = []
+        foreign_keys = []
+
+        body_match = re.search(r"CREATE\s+TABLE\s+\S+\s*\((.*)\)\s*;?$", ddl, re.IGNORECASE | re.DOTALL)
+        if not body_match:
+            result[table] = {"columns": [], "primary_key": [], "unique": [], "foreign_keys": []}
+            continue
+        body = body_match.group(1)
+
+        depth = 0
+        current = []
+        clauses = []
+        for ch in body:
+            if ch == "(":
+                depth += 1
+                current.append(ch)
+            elif ch == ")":
+                depth -= 1
+                current.append(ch)
+            elif ch == "," and depth == 0:
+                clauses.append("".join(current).strip())
+                current = []
+            else:
+                current.append(ch)
+        if current:
+            clauses.append("".join(current).strip())
+
+        for clause in clauses:
+            clause_stripped = clause.strip()
+            upper = clause_stripped.upper()
+
+            if pk_re.search(clause_stripped):
+                m = pk_re.search(clause_stripped)
+                primary_key = [c.strip().strip('"') for c in m.group(1).split(",")]
+
+            elif fk_re.search(clause_stripped):
+                m = fk_re.search(clause_stripped)
+                foreign_keys.append({
+                    "cols": [c.strip().strip('"') for c in m.group(1).split(",")],
+                    "ref_table": m.group(2).strip().lower(),
+                    "ref_cols": [c.strip().strip('"') for c in m.group(3).split(",")],
+                })
+
+            elif uq_re.search(clause_stripped):
+                m = uq_re.search(clause_stripped)
+                unique_keys.append([c.strip().strip('"') for c in m.group(1).split(",")])
+
+            elif upper.startswith("PRIMARY") or upper.startswith("CONSTRAINT"):
+                pass
+
+            else:
+                parts = clause_stripped.split()
+                if len(parts) >= 2:
+                    col_name = parts[0].strip('"')
+                    col_type = parts[1].rstrip(",").upper()
+                    nullable = "NOT NULL" not in upper
+                    if "PRIMARY KEY" in upper:
+                        primary_key = [col_name]
+                    columns.append({"name": col_name, "type": col_type, "nullable": nullable})
+
+        result[table] = {
+            "columns": columns,
+            "primary_key": primary_key,
+            "unique": unique_keys,
+            "foreign_keys": foreign_keys,
+        }
+    return result
+
+
+def _fetch_indexes(dsn: str, tables: list[str]) -> dict[str, list[dict]]:
+    """
+    Returns index info per table from pg_catalog.
+    Each entry: {"name": str, "columns": [str], "unique": bool, "partial": bool}
+    """
+    if not tables:
+        return {}
+
+    sql = """
+SELECT
+    t.relname                             AS table_name,
+    i.relname                             AS index_name,
+    ix.indisunique                        AS is_unique,
+    ix.indisprimary                       AS is_primary,
+    ix.indpred IS NOT NULL                AS is_partial,
+    array_agg(a.attname ORDER BY k.pos)  AS columns
+FROM pg_class      t
+JOIN pg_index      ix ON ix.indrelid  = t.oid
+JOIN pg_class      i  ON i.oid        = ix.indexrelid
+JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS k(attnum, pos)
+     ON true
+JOIN pg_attribute  a  ON a.attrelid   = t.oid AND a.attnum = k.attnum
+WHERE t.relkind = 'r'
+  AND t.relname = ANY(%s)
+  AND NOT ix.indisprimary          -- skip PK indexes (already shown via DDL)
+GROUP BY t.relname, i.relname, ix.indisunique, ix.indisprimary, ix.indpred
+ORDER BY t.relname, i.relname;
+"""
+    out: dict[str, list[dict]] = {t: [] for t in tables}
+    try:
+        with connect(dsn) as conn:
+            conn.autocommit = True
+            with conn.cursor() as cur:
+                cur.execute(sql, (tables,))
+                for table_name, index_name, is_unique, is_primary, is_partial, columns in cur.fetchall():
+                    out.setdefault(table_name, []).append({
+                        "name": index_name,
+                        "columns": list(columns),
+                        "unique": bool(is_unique),
+                        "partial": bool(is_partial),
+                    })
+    except Exception:
+        pass
+    return out
+
+
+def _render_schema_rich(
+    tables: list[str],
+    dsn: str,
+    create_table_map: dict[str, str],
+) -> str:
+    """
+    Render a rich schema block for P3, including:
+      - Column names and types
+      - Primary keys
+      - Foreign keys (with referenced table)
+      - Secondary indexes (unique, partial flags)
+      - Approximate row counts
+    """
+    parsed   = _render_schema_full_ddl(tables, create_table_map)
+    indexes  = _fetch_indexes(dsn, tables)
+    row_est  = _fetch_table_row_estimates(dsn, tables)
+
+    sorted_tables = sorted(tables, key=lambda t: row_est.get(t, 0), reverse=True)
+
+    blocks = []
+    for table in sorted_tables:
+        info = parsed.get(table, {})
+        lines = [f"TABLE {table}  (~{row_est.get(table, 0):,} rows)"]
+
+        for col in info.get("columns", []):
+            null_flag = "" if col["nullable"] else " NOT NULL"
+            lines.append(f"  {col['name']}  {col['type']}{null_flag}")
+
+        pk = info.get("primary_key", [])
+        if pk:
+            lines.append(f"  PK: ({', '.join(pk)})")
+
+        for fk in info.get("foreign_keys", []):
+            cols     = ", ".join(fk["cols"])
+            ref_cols = ", ".join(fk["ref_cols"])
+            lines.append(f"  FK: ({cols}) → {fk['ref_table']}({ref_cols})")
+
+        for uq in info.get("unique", []):
+            lines.append(f"  UNIQUE: ({', '.join(uq)})")
+
+        for idx in indexes.get(table, []):
+            flags = []
+            if idx["unique"]:
+                flags.append("UNIQUE")
+            if idx["partial"]:
+                flags.append("PARTIAL")
+            flag_str = " [" + ", ".join(flags) + "]" if flags else ""
+            lines.append(f"  INDEX {idx['name']}: ({', '.join(idx['columns'])}){flag_str}")
+
+        blocks.append("\n".join(lines))
+
+    return "\n\n".join(blocks)
 
 
 def _prompt_base(sql: str) -> str:
-    return "\n".join(
-        [
-            "You are a PostgreSQL SQL optimizer.",
-            "Rewrite the SQL to be semantically equivalent but potentially faster on PostgreSQL.",
-            "Constraints:",
-            "- Return only ONE SQL query.",
-            "- Do NOT output explanations or markdown.",
-            "- Preserve the result set exactly (columns, ordering, LIMIT).",
-            "- Use only standard PostgreSQL syntax (no hints).",
-            "",
-            "SQL:",
-            sql,
-        ]
-    )
+    return f"""You are a PostgreSQL SQL optimizer.
+Rewrite the SQL to be semantically equivalent but potentially faster on PostgreSQL.
+
+Rules:
+- Output ONLY the rewritten SQL inside <SQL>...</SQL> tags.
+- Preserve the result set exactly: same columns, same ordering, same LIMIT.
+- Do NOT include explanations, markdown, or any text outside the <SQL> tags.
+- Use only standard PostgreSQL syntax (no hints).
+
+SQL:
+{sql}
+"""
 
 
 def _prompt_engine(sql: str) -> str:
-    return "\n".join(
-        [
-            "You are a PostgreSQL 16 SQL optimizer.",
-            "Target engine: PostgreSQL 16.",
-            "Rewrite the SQL to be semantically equivalent but potentially faster on PostgreSQL.",
-            "Constraints:",
-            "- Return only ONE SQL query.",
-            "- Do NOT output explanations or markdown.",
-            "- Preserve the result set exactly (columns, ordering, LIMIT).",
-            "- Use only standard PostgreSQL syntax (no hints, no proprietary keywords).",
-            "",
-            "SQL:",
-            sql,
-        ]
-    )
+    return f"""You are a PostgreSQL 16 SQL optimizer.
+Rewrite the SQL to be semantically equivalent but potentially faster on PostgreSQL.
+
+You may use any PostgreSQL 16 feature, including:
+- CTEs with MATERIALIZED / NOT MATERIALIZED
+- LATERAL joins
+- Window functions with FILTER
+- Partial indexes (reference only; do not CREATE)
+- DISTINCT ON
+
+Rules:
+- Output ONLY the rewritten SQL inside <SQL>...</SQL> tags.
+- Preserve the result set exactly: same columns, same ordering, same LIMIT.
+- Do NOT include explanations, markdown, or any text outside the <SQL> tags.
+- Use only standard PostgreSQL syntax (no hints).
+
+SQL:
+{sql}
+"""
 
 
-def _prompt_engine_header() -> list[str]:
-    return [
-        "You are a PostgreSQL 16 SQL optimizer.",
-        "Target engine: PostgreSQL 16.",
-        "Rewrite the SQL to be semantically equivalent but potentially faster on PostgreSQL.",
-        "Constraints:",
-        "- Return only ONE SQL query.",
-        "- Do NOT output explanations or markdown.",
-        "- Preserve the result set exactly (columns, ordering, LIMIT).",
-        "- Use only standard PostgreSQL syntax (no hints, no proprietary keywords).",
-    ]
+def _prompt_engine_header() -> str:
+    return f"""You are a PostgreSQL 16 SQL optimizer.
+Rewrite the SQL to be semantically equivalent but potentially faster on PostgreSQL.
+
+You may use any PostgreSQL 16 feature, including:
+- CTEs with MATERIALIZED / NOT MATERIALIZED
+- LATERAL joins
+- Window functions with FILTER
+- Partial indexes (reference only; do not CREATE)
+- DISTINCT ON
+
+Rules:
+- Output ONLY the rewritten SQL inside <SQL>...</SQL> tags.
+- Preserve the result set exactly: same columns, same ordering, same LIMIT.
+- Do NOT include explanations, markdown, or any text outside the <SQL> tags.
+- Use only standard PostgreSQL syntax (no hints, no proprietary keywords).
+"""
 
 
-def _prompt_with_schema(sql: str, schema_block: str, extra: list[str]) -> str:
-    return "\n".join(
-        [
-            *extra,
-            "",
-            "Schema (subset):",
-            schema_block or "(none)",
-            "",
-            "SQL:",
-            sql,
-        ]
-    )
+def _prompt_with_schema(sql: str, schema_block: str, extra: str) -> str:
+    return f"""
+    {extra}
+
+    Schema (subset):
+    {schema_block or "(none)"}
+
+    SQL:
+    {sql}
+    """
 
 
-def _prompt_rules_header() -> list[str]:
-    return [
-        "You are a PostgreSQL 16 SQL optimizer.",
-        "Target engine: PostgreSQL 16.",
-        "Rewrite the SQL to be semantically equivalent but potentially faster on PostgreSQL.",
-        "Constraints:",
-        "- Return only ONE SQL query.",
-        "- Do NOT output explanations or markdown.",
-        "- Preserve the result set exactly (columns, ordering, LIMIT).",
-        "- Use only standard PostgreSQL syntax (no hints).",
-        "- Prefer explicit JOIN syntax over implicit joins.",
-        "- Avoid unnecessary SELECT * (keep columns identical to the original query output).",
-    ]
+def _prompt_with_schema_rich(sql: str, schema_block: str, extra: str) -> str:
+    return f"""
+    {extra}
+
+    The schema below includes column types, primary keys (PK), foreign keys (FK), indexes, and approximate row counts. Use this information to make better decisions on query optimization.
+
+    Schema (subset):
+    {schema_block or "(none)"}
+
+    SQL:
+    {sql}
+    """
+
+
+def _prompt_rules_header() -> str:
+    return f"""You are a PostgreSQL 16 SQL optimizer.
+Rewrite the SQL to be semantically equivalent but potentially faster on PostgreSQL.
+
+You may use any PostgreSQL 16 feature, including:
+- CTEs with MATERIALIZED / NOT MATERIALIZED
+- LATERAL joins
+- Window functions with FILTER
+- Partial indexes (reference only; do not CREATE)
+- DISTINCT ON
+
+Apply the following rewrite strategies where applicable:
+1. Decorrelate correlated subqueries: replace with JOIN or LATERAL.
+2. Push predicates inside CTEs or subqueries to reduce row counts early.
+3. Replace NOT IN / NOT EXISTS with LEFT JOIN ... WHERE key IS NULL when safe.
+4. Add NOT MATERIALIZED to CTEs that are referenced only once.
+5. Convert scalar aggregate subqueries in SELECT lists to window functions.
+6. Avoid re-scanning large tables: consolidate multiple passes into one.
+
+Rules:
+- Output ONLY the rewritten SQL inside <SQL>...</SQL> tags.
+- Preserve the result set exactly: same columns, same ordering, same LIMIT.
+- Do NOT include explanations, markdown, or any text outside the <SQL> tags.
+- Use only standard PostgreSQL syntax (no hints).
+"""
 
 
 PROMPT_VARIANTS: dict[str, Callable[[str, str, list[str], str], str]] = {
     "P0_BASE": lambda sql, schema, tables, dsn: _prompt_base(sql),
     "P1_ENGINE": lambda sql, schema, tables, dsn: _prompt_engine(sql),
     "P2_SCHEMA_MIN": lambda sql, schema, tables, dsn: _prompt_with_schema(sql, schema, _prompt_engine_header()),
-    "P3_SCHEMA_STATS": lambda sql, schema, tables, dsn: _prompt_with_schema(sql, schema, _prompt_engine_header()),
+    "P3_SCHEMA_STATS": lambda sql, schema, tables, dsn: _prompt_with_schema_rich(sql, schema, _prompt_engine_header()),
     "P4_RULES": lambda sql, schema, tables, dsn: _prompt_with_schema(sql, schema, _prompt_rules_header()),
 }
 
@@ -367,7 +580,7 @@ def _build_prompt_variant(
         schema_block = _render_schema_min(tables, create_table_map)
         return PROMPT_VARIANTS[variant_id](sql, schema_block, tables, dsn)
     if variant_id == "P3_SCHEMA_STATS":
-        schema_block = _render_schema_stats(tables, dsn, create_table_map)
+        schema_block = _render_schema_rich(tables, dsn, create_table_map)
         return PROMPT_VARIANTS[variant_id](sql, schema_block, tables, dsn)
     if variant_id == "P4_RULES":
         schema_block = _render_schema_min(tables, create_table_map)
@@ -377,89 +590,90 @@ def _build_prompt_variant(
 
 def _build_reasoning_prompt_direct(sql: str, dsn: str, tables: list[str], create_table_map: dict[str, str]) -> str:
     schema_block = _render_schema_min(tables, create_table_map)
-    return "\n".join(
-        [
-            "You are a PostgreSQL 16 SQL optimizer.",
-            "Target engine: PostgreSQL 16.",
-            "Rewrite the SQL to be semantically equivalent but potentially faster on PostgreSQL.",
-            "Constraints:",
-            "- Return only ONE SQL query.",
-            "- Do NOT output explanations or markdown.",
-            "- Preserve the result set exactly (columns, ordering, LIMIT).",
-            "- Use only standard PostgreSQL syntax (no hints).",
-            "",
-            "Schema (subset):",
-            schema_block or "(none)",
-            "",
-            "SQL:",
-            sql,
-        ]
-    )
+    return f"""You are a PostgreSQL 16 SQL optimizer.
+Rewrite the SQL to be semantically equivalent but potentially faster on PostgreSQL.
+
+Rules:
+- Output ONLY the rewritten SQL inside <SQL>...</SQL> tags.
+- Preserve the result set exactly: same columns, same ordering, same LIMIT.
+- Do NOT include explanations, markdown, or any text outside the <SQL> tags.
+- Use only standard PostgreSQL syntax (no hints).
+
+Schema (subset):
+{schema_block or "(none)"}
+
+SQL:
+{sql}
+"""
 
 
 def _build_reasoning_prompt_cot(sql: str, dsn: str, tables: list[str], create_table_map: dict[str, str]) -> str:
     schema_block = _render_schema_min(tables, create_table_map)
-    return "\n".join(
-        [
-            "You are a PostgreSQL 16 SQL optimizer.",
-            "Target engine: PostgreSQL 16.",
-            "Analyze performance bottlenecks and propose rewrite steps briefly.",
-            "Then output the final optimized SQL between <SQL> and </SQL> tags.",
-            "Constraints:",
-            "- The final SQL MUST be inside <SQL>...</SQL>.",
-            "- Preserve result set exactly (columns, ordering, LIMIT).",
-            "- Use only standard PostgreSQL syntax (no hints).",
-            "",
-            "Schema (subset):",
-            schema_block or "(none)",
-            "",
-            "SQL:",
-            sql,
-        ]
-    )
+    return f"""You are a PostgreSQL 16 SQL optimizer.
+
+Analyze the query using this exact structure:
+<ANALYSIS>
+1. Join structure: describe join types and estimated cardinalities.
+2. Subquery patterns: identify correlated subqueries or repeated scans.
+3. CTE usage: note if CTEs are materialized unnecessarily.
+4. Predicate placement: identify predicates that could be pushed earlier.
+5. Top bottleneck: state the single most expensive operation.
+</ANALYSIS>
+
+Then output the optimized SQL:
+<SQL>
+[rewritten query here]
+</SQL>
+
+Rules:
+- Preserve result set exactly (columns, ordering, LIMIT).
+- Use only standard PostgreSQL 16 syntax (no hints).
+
+Schema (subset):
+{schema_block or "(none)"}
+
+SQL:
+{sql}
+"""
 
 
 def _build_reasoning_prompt_plan(sql: str, dsn: str, tables: list[str], create_table_map: dict[str, str]) -> str:
     schema_block = _render_schema_min(tables, create_table_map)
-    return "\n".join(
-        [
-            "You are a PostgreSQL 16 SQL optimizer.",
-            "Target engine: PostgreSQL 16.",
-            "Given the SQL and schema, write an optimization plan for PostgreSQL.",
-            "Output only the plan as numbered bullet points. Do not output SQL.",
-            "",
-            "Schema (subset):",
-            schema_block or "(none)",
-            "",
-            "SQL:",
-            sql,
-        ]
-    )
+    return f"""You are a PostgreSQL 16 SQL optimizer.
+Analyze the SQL and produce a numbered optimization plan.
+Each step must follow this format:
+  N. [TECHNIQUE]: [one-line description of what to change and why]
+
+Output ONLY the numbered plan. Do NOT output any SQL.
+
+Schema (subset):
+{schema_block or "(none)"}
+
+SQL:
+{sql}
+"""
 
 
 def _build_reasoning_prompt_apply_plan(sql: str, plan: str, dsn: str, tables: list[str], create_table_map: dict[str, str]) -> str:
     schema_block = _render_schema_min(tables, create_table_map)
-    return "\n".join(
-        [
-            "You are a PostgreSQL 16 SQL optimizer.",
-            "Target engine: PostgreSQL 16.",
-            "Apply the optimization plan to rewrite the SQL.",
-            "Constraints:",
-            "- Return only ONE SQL query.",
-            "- Do NOT output explanations or markdown.",
-            "- Preserve result set exactly (columns, ordering, LIMIT).",
-            "- Use only standard PostgreSQL syntax (no hints).",
-            "",
-            "Optimization plan:",
-            plan.strip(),
-            "",
-            "Schema (subset):",
-            schema_block or "(none)",
-            "",
-            "SQL:",
-            sql,
-        ]
-    )
+    return f"""You are a PostgreSQL 16 SQL optimizer.
+Apply each step of the optimization plan below to rewrite the SQL.
+
+Rules:
+- Output ONLY the rewritten SQL inside <SQL>...</SQL> tags.
+- Preserve the result set exactly: same columns, same ordering, same LIMIT.
+- Do NOT include explanations, markdown, or any text outside the <SQL> tags.
+- Use only standard PostgreSQL syntax (no hints).
+
+Optimization plan:
+{plan.strip()}
+
+Schema (subset):
+{schema_block or "(none)"}
+
+SQL:
+{sql}
+"""
 
 
 def _artifact_write(dir_path: Path, name: str, content: str) -> None:
