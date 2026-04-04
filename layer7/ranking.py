@@ -7,7 +7,15 @@ from pipeline.models import BenchmarkReport, NormalizedCandidate, RankedCandidat
 
 
 class SpeedupRankingLayer:
-    """Layer 7: ranks candidates by validation status and benchmark score."""
+    """Layer 7: ranks candidates by validation status and benchmark score.
+
+    The composite score combines speedup (time performance) and memory_score
+    (buffer efficiency) with configurable weights.
+    """
+
+    def __init__(self, speedup_weight: float = 0.7, memory_weight: float = 0.3):
+        self._speedup_weight = speedup_weight
+        self._memory_weight = memory_weight
 
     def rank(
         self,
@@ -38,6 +46,9 @@ class SpeedupRankingLayer:
                     speedup=benchmark_result.speedup if benchmark_result else None,
                     benchmark_error=benchmark_result.error_message if benchmark_result else None,
                     stage1_text=candidate.stage1_text,
+                    # --- NEW: memory metrics ---
+                    buffer_stats=benchmark_result.buffer_stats if benchmark_result else None,
+                    memory_score=benchmark_result.memory_score if benchmark_result else None,
                 )
             )
 
@@ -58,10 +69,20 @@ class SpeedupRankingLayer:
                 next_rank += 1
         return reranked
 
-    @staticmethod
-    def _score(is_valid: bool, benchmark_result) -> float | None:
+    def _score(self, is_valid: bool, benchmark_result) -> float | None:
+        """Compute composite score: weighted combination of speedup and memory_score.
+
+        Score = speedup_weight * speedup + memory_weight * memory_score
+
+        If memory_score is unavailable, falls back to speedup only.
+        """
         if not is_valid:
             return None
         if benchmark_result and benchmark_result.success and benchmark_result.speedup is not None:
-            return float(benchmark_result.speedup)
+            speedup = float(benchmark_result.speedup)
+            memory = benchmark_result.memory_score
+
+            if memory is not None:
+                return self._speedup_weight * speedup + self._memory_weight * memory
+            return speedup
         return 0.0
