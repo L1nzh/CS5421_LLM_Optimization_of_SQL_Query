@@ -15,6 +15,17 @@ class ModelSummary:
     expected_queries: int
     succeeded: int
     speedups: list[float]
+    # --- NEW: memory metrics ---
+    memory_scores: list[float]
+    # --- NEW: correctness metrics ---
+    results_match_count: int = 0
+    results_match_total: int = 0
+
+    @property
+    def correctness_rate(self) -> Optional[float]:
+        if self.results_match_total <= 0:
+            return None
+        return self.results_match_count / self.results_match_total
 
     @property
     def success_rate(self) -> Optional[float]:
@@ -34,6 +45,12 @@ class ModelSummary:
             return None
         better = sum(1 for s in self.speedups if s > 1.0)
         return better / len(self.speedups)
+
+    @property
+    def median_memory_score(self) -> Optional[float]:
+        if not self.memory_scores:
+            return None
+        return float(median(self.memory_scores))
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -107,6 +124,9 @@ def _summarize_by_model(
         qmap = per_model.get(model, {})
         succeeded = 0
         speedups: list[float] = []
+        memory_scores: list[float] = []
+        match_count = 0
+        match_total = 0
         for qid in expected_qids:
             r = qmap.get(qid)
             if not isinstance(r, dict):
@@ -116,6 +136,16 @@ def _summarize_by_model(
                 s = r.get("speedup")
                 if isinstance(s, (int, float)):
                     speedups.append(float(s))
+                # --- NEW: collect memory_score ---
+                ms = r.get("memory_score")
+                if isinstance(ms, (int, float)):
+                    memory_scores.append(float(ms))
+                # --- NEW: collect results_match ---
+                rm = r.get("results_match")
+                if rm is not None:
+                    match_total += 1
+                    if rm is True:
+                        match_count += 1
 
         summaries.append(
             ModelSummary(
@@ -123,6 +153,9 @@ def _summarize_by_model(
                 expected_queries=len(expected_qids),
                 succeeded=succeeded,
                 speedups=speedups,
+                memory_scores=memory_scores,
+                results_match_count=match_count,
+                results_match_total=match_total,
             )
         )
 
@@ -156,6 +189,10 @@ def _build_markdown(
     dsn = compare_payload.get("dsn")
     generated_at = compare_payload.get("generated_at") or datetime.now().isoformat()
 
+    # Check if any model has memory data or correctness data
+    has_memory = any(s.memory_scores for s in summaries)
+    has_correctness = any(s.results_match_total > 0 for s in summaries)
+
     lines: list[str] = []
     lines.append("# PostgreSQL TPC-DS(SF=1) — Baseline vs Layer3 汇总报告")
     lines.append("")
@@ -171,25 +208,35 @@ def _build_markdown(
         lines.append("")
     lines.append("## 1. 汇总指标（按模型）")
     lines.append("")
-    lines.append(
-        "| model | success | median speedup | 优于 baseline 比例 | speedup 样本数 |"
-    )
-    lines.append("| --- | ---: | ---: | ---: | ---: |")
+
+    # Build header dynamically
+    header_cols = ["model", "success", "median speedup", "优于 baseline 比例", "speedup 样本数"]
+    align_cols = ["---", "---:", "---:", "---:", "---:"]
+    if has_memory:
+        header_cols.append("median memory score")
+        align_cols.append("---:")
+    if has_correctness:
+        header_cols.append("correctness")
+        align_cols.append("---:")
+
+    lines.append("| " + " | ".join(header_cols) + " |")
+    lines.append("| " + " | ".join(align_cols) + " |")
+
     for s in summaries:
         better = sum(1 for v in s.speedups if v > 1.0)
-        lines.append(
-            "| "
-            + " | ".join(
-                [
-                    s.model,
-                    _fmt_ratio(s.succeeded, s.expected_queries),
-                    _fmt_float(s.median_speedup),
-                    _fmt_ratio(better, len(s.speedups)),
-                    str(len(s.speedups)),
-                ]
-            )
-            + " |"
-        )
+        cols = [
+            s.model,
+            _fmt_ratio(s.succeeded, s.expected_queries),
+            _fmt_float(s.median_speedup),
+            _fmt_ratio(better, len(s.speedups)),
+            str(len(s.speedups)),
+        ]
+        if has_memory:
+            cols.append(_fmt_float(s.median_memory_score, 4))
+        if has_correctness:
+            cols.append(_fmt_ratio(s.results_match_count, s.results_match_total))
+        lines.append("| " + " | ".join(cols) + " |")
+
     lines.append("")
     lines.append("指标口径：")
     lines.append("")
@@ -197,6 +244,44 @@ def _build_markdown(
     lines.append("- speedup：`baseline_median_execution_time_ms / median_execution_time_ms`（仅统计有数值的条目）")
     lines.append("- median speedup：每模型所有 speedup 样本的中位数")
     lines.append("- 优于 baseline 比例：speedup > 1.0 的占比（分母为 speedup 样本数）")
+    if has_memory:
+        lines.append("- memory score：基于 PostgreSQL buffer 统计的内存效率评分（0~1，越高越好）")
+        lines.append("  - 计算公式：`0.7 × cache_hit_ratio + 0.3 × (1 - temp_spill_ratio)`")
+        lines.append("  - cache_hit_ratio = shared_hit_blocks / (shared_hit_blocks + shared_read_blocks)")
+        lines.append("  - temp_spill_ratio = temp_blocks / total_blocks")
+    if has_correctness:
+        lines.append("- correctness：rewritten SQL 与 original SQL 结果集等价的比例")
+        lines.append("  - 通过比较两者的列名、行数、内容哈希来判断")
+
+    # --- NEW: Section 1.5 — Per-query memory details ---
+    if has_memory:
+        lines.append("")
+        lines.append("## 1.5 Buffer 详情（按模型 × query）")
+        lines.append("")
+        lines.append("| model | query | shared_hit | shared_read | temp_blocks | memory_score |")
+        lines.append("| --- | --- | ---: | ---: | ---: | ---: |")
+        results = compare_payload.get("results", [])
+        if isinstance(results, list):
+            for r in results:
+                if not isinstance(r, dict):
+                    continue
+                if r.get("success") is not True:
+                    continue
+                model = r.get("model", "?")
+                qid = r.get("query_id", "?")
+                buf = r.get("buffer_stats", {})
+                if not isinstance(buf, dict):
+                    buf = {}
+                sh = buf.get("shared_hit_blocks", "N/A")
+                sr = buf.get("shared_read_blocks", "N/A")
+                tr = buf.get("temp_read_blocks", 0)
+                tw = buf.get("temp_written_blocks", 0)
+                temp_total = (tr + tw) if isinstance(tr, (int, float)) and isinstance(tw, (int, float)) else "N/A"
+                ms = r.get("memory_score")
+                lines.append(
+                    f"| {model} | {qid} | {sh} | {sr} | {temp_total} | {_fmt_float(ms, 4) if isinstance(ms, (int, float)) else 'N/A'} |"
+                )
+
     lines.append("")
     lines.append("## 2. 实验输入与运行参数")
     lines.append("")
