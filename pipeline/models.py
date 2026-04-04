@@ -1,8 +1,6 @@
 from __future__ import annotations
-
 from dataclasses import asdict, dataclass, field
 from typing import Any, Optional
-
 from config.settings import ValidationSettings
 
 
@@ -69,6 +67,58 @@ class NormalizedCandidate:
 
 
 @dataclass(slots=True, frozen=True)
+class BufferStats:
+    """Aggregated buffer statistics from EXPLAIN (ANALYZE, BUFFERS)."""
+    shared_hit_blocks: int = 0
+    shared_read_blocks: int = 0
+    shared_dirtied_blocks: int = 0
+    shared_written_blocks: int = 0
+    temp_read_blocks: int = 0
+    temp_written_blocks: int = 0
+
+    @property
+    def total_shared_blocks(self) -> int:
+        """Total shared buffer accesses (hit + read)."""
+        return self.shared_hit_blocks + self.shared_read_blocks
+
+    @property
+    def cache_hit_ratio(self) -> Optional[float]:
+        """Shared buffer cache hit ratio, None if no buffer access."""
+        total = self.total_shared_blocks
+        if total == 0:
+            return None
+        return self.shared_hit_blocks / total
+
+    @property
+    def total_temp_blocks(self) -> int:
+        """Total temp blocks (read + written), indicates spill to disk."""
+        return self.temp_read_blocks + self.temp_written_blocks
+
+    @property
+    def memory_score(self) -> float:
+        """
+        Composite memory efficiency score (0~1, higher is better).
+
+        Penalizes disk reads (shared_read) and temp usage heavily,
+        rewards high cache hit ratio.
+        """
+        total_shared = self.total_shared_blocks
+        if total_shared == 0 and self.total_temp_blocks == 0:
+            return 1.0  # No buffer usage at all — trivial query
+
+        hit_ratio = self.cache_hit_ratio if self.cache_hit_ratio is not None else 0.0
+
+        # Temp block penalty: any spill to disk is bad
+        # Normalize by total work done (shared + temp)
+        total_all = total_shared + self.total_temp_blocks
+        temp_ratio = self.total_temp_blocks / total_all if total_all > 0 else 0.0
+
+        # Score: 70% weight on cache hit ratio, 30% weight on avoiding temp spill
+        score = 0.7 * hit_ratio + 0.3 * (1.0 - temp_ratio)
+        return round(score, 4)
+
+
+@dataclass(slots=True, frozen=True)
 class CandidateBenchmarkResult:
     candidate_id: str
     query: str
@@ -77,6 +127,9 @@ class CandidateBenchmarkResult:
     planning_time_ms: Optional[float]
     speedup: Optional[float]
     error_message: Optional[str] = None
+    # --- NEW: buffer/memory metrics ---
+    buffer_stats: Optional[BufferStats] = None
+    memory_score: Optional[float] = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -85,6 +138,9 @@ class BenchmarkReport:
     baseline_execution_time_ms: Optional[float]
     baseline_planning_time_ms: Optional[float]
     candidate_results: tuple[CandidateBenchmarkResult, ...]
+    # --- NEW: baseline buffer metrics ---
+    baseline_buffer_stats: Optional[BufferStats] = None
+    baseline_memory_score: Optional[float] = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -103,6 +159,9 @@ class RankedCandidate:
     speedup: Optional[float] = None
     benchmark_error: Optional[str] = None
     stage1_text: Optional[str] = None
+    # --- NEW: memory metrics ---
+    buffer_stats: Optional[BufferStats] = None
+    memory_score: Optional[float] = None
 
 
 @dataclass(slots=True, frozen=True)
