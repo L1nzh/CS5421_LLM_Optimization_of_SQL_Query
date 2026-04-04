@@ -31,12 +31,34 @@ def _variant_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     success_rows = [r for r in rows if r.get("success") is True and isinstance(r.get("speedup"), (int, float))]
     speedups = [float(r["speedup"]) for r in success_rows]
     better = [s for s in speedups if s > 1.0]
+
+    # --- NEW: memory scores ---
+    memory_scores = []
+    for r in success_rows:
+        ms = r.get("memory_score")
+        if isinstance(ms, (int, float)):
+            memory_scores.append(float(ms))
+
+    # --- NEW: correctness ---
+    match_total = 0
+    match_count = 0
+    for r in success_rows:
+        rm = r.get("results_match")
+        if rm is not None:
+            match_total += 1
+            if rm is True:
+                match_count += 1
+
     return {
         "total": total,
         "success": sum(1 for r in rows if r.get("success") is True),
         "speedup_n": len(speedups),
         "median_speedup": _median(speedups),
         "better_ratio": f"{len(better)}/{len(speedups)}" if speedups else "0/0",
+        "median_memory_score": _median(memory_scores),
+        "memory_score_n": len(memory_scores),
+        "match_count": match_count,
+        "match_total": match_total,
     }
 
 
@@ -74,6 +96,18 @@ def _md_table(headers: list[str], rows: list[list[str]]) -> str:
     return "\n".join([line1, line2, body]).strip() + "\n"
 
 
+def _fmt_float(value: Optional[float], digits: int = 4) -> str:
+    if value is None:
+        return "NA"
+    return f"{value:.{digits}f}"
+
+
+def _fmt_ratio(num: int, den: int) -> str:
+    if den <= 0:
+        return "NA"
+    return f"{num}/{den} ({(num / den) * 100:.1f}%)"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate markdown report for prompt/reasoning ablation experiments.")
     parser.add_argument("--ablations-json", default="benchmark/results/postgres_tpcds_sf1_q9_pro_ablations.json")
@@ -91,6 +125,16 @@ def main() -> int:
 
     groups = _group_by_variant([r for r in results if isinstance(r, dict)])
 
+    # Check if data has memory or correctness info
+    has_memory = any(
+        isinstance(r.get("memory_score"), (int, float))
+        for r in results if isinstance(r, dict) and r.get("success") is True
+    )
+    has_correctness = any(
+        r.get("results_match") is not None
+        for r in results if isinstance(r, dict) and r.get("success") is True
+    )
+
     prompt_rows: list[list[str]] = []
     reasoning_rows: list[list[str]] = []
     prompt_examples: list[tuple[str, str]] = []
@@ -105,6 +149,11 @@ def main() -> int:
             s["better_ratio"],
             str(s["speedup_n"]),
         ]
+        if has_memory:
+            row.append(_fmt_float(s["median_memory_score"]))
+        if has_correctness:
+            row.append(_fmt_ratio(s["match_count"], s["match_total"]))
+
         if exp == "prompt":
             prompt_rows.append(row)
             ex = _pick_prompt_example(rows, "q1")
@@ -117,6 +166,13 @@ def main() -> int:
                 reasoning_examples.append((vid, ex))
 
     failures = _pick_failures([r for r in results if isinstance(r, dict)], limit=20)
+
+    # Build table headers dynamically
+    base_headers = ["variant", "success", "median speedup", "优于 baseline 比例", "speedup 样本数"]
+    if has_memory:
+        base_headers.append("median memory score")
+    if has_correctness:
+        base_headers.append("correctness")
 
     lines: list[str] = []
     lines.append("# Prompt & Reasoning Engineering 实验报告（Pro 模型）")
@@ -134,30 +190,50 @@ def main() -> int:
     lines.append("")
     lines.append("指标口径：")
     lines.append("")
-    lines.append("- 使用 `EXPLAIN (ANALYZE, FORMAT JSON)` 的 `Execution Time` 作为执行时间（ms）")
+    lines.append("- 使用 `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` 的 `Execution Time` 作为执行时间（ms）")
     lines.append("- speedup = baseline_median_execution_time_ms / variant_median_execution_time_ms（仅统计 success 的样本）")
+    if has_memory:
+        lines.append("- memory score：基于 PostgreSQL buffer 统计的内存效率评分（0~1，越高越好）")
+        lines.append("  - 计算公式：`0.7 × cache_hit_ratio + 0.3 × (1 - temp_spill_ratio)`")
+    if has_correctness:
+        lines.append("- correctness：rewritten SQL 与 original SQL 结果集等价的比例")
     lines.append("")
 
     if prompt_rows:
         lines.append("## 2. Prompt Engineering 结果汇总")
         lines.append("")
-        lines.append(
-            _md_table(
-                ["variant", "success", "median speedup", "优于 baseline 比例", "speedup 样本数"],
-                prompt_rows,
-            ).rstrip()
-        )
+        lines.append(_md_table(base_headers, prompt_rows).rstrip())
         lines.append("")
 
     if reasoning_rows:
         lines.append("## 3. Reasoning Engineering 结果汇总")
         lines.append("")
-        lines.append(
-            _md_table(
-                ["variant", "success", "median speedup", "优于 baseline 比例", "speedup 样本数"],
-                reasoning_rows,
-            ).rstrip()
-        )
+        lines.append(_md_table(base_headers, reasoning_rows).rstrip())
+        lines.append("")
+
+    # --- NEW: Buffer details section ---
+    if has_memory:
+        lines.append("## 3.5 Buffer 详情（按 variant × query）")
+        lines.append("")
+        lines.append("| variant | query | shared_hit | shared_read | temp_blocks | memory_score |")
+        lines.append("| --- | --- | ---: | ---: | ---: | ---: |")
+        for r in results:
+            if not isinstance(r, dict) or r.get("success") is not True:
+                continue
+            vid = r.get("variant_id", "?")
+            qid = r.get("query_id", "?")
+            buf = r.get("buffer_stats", {})
+            if not isinstance(buf, dict):
+                buf = {}
+            sh = buf.get("shared_hit_blocks", "NA")
+            sr = buf.get("shared_read_blocks", "NA")
+            tr = buf.get("temp_read_blocks", 0)
+            tw = buf.get("temp_written_blocks", 0)
+            temp_total = (tr + tw) if isinstance(tr, (int, float)) and isinstance(tw, (int, float)) else "NA"
+            ms = r.get("memory_score")
+            lines.append(
+                f"| {vid} | {qid} | {sh} | {sr} | {temp_total} | {_fmt_float(ms) if isinstance(ms, (int, float)) else 'NA'} |"
+            )
         lines.append("")
 
     if prompt_examples:
@@ -196,4 +272,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
