@@ -14,6 +14,17 @@ from psycopg import connect
 
 
 @dataclass(frozen=True)
+class BufferStats:
+    """Aggregated buffer statistics from EXPLAIN (ANALYZE, BUFFERS)."""
+    shared_hit_blocks: int = 0
+    shared_read_blocks: int = 0
+    shared_dirtied_blocks: int = 0
+    shared_written_blocks: int = 0
+    temp_read_blocks: int = 0
+    temp_written_blocks: int = 0
+
+
+@dataclass(frozen=True)
 class QueryBaselineResult:
     query_id: str
     query_path: str
@@ -24,6 +35,9 @@ class QueryBaselineResult:
     run_planning_time_ms: list[float]
     median_planning_time_ms: Optional[float]
     error_message: Optional[str]
+    # --- NEW: memory metrics ---
+    buffer_stats: Optional[dict[str, int]] = None
+    memory_score: Optional[float] = None
 
 
 def _parse_query_id(path: Path) -> int:
@@ -63,7 +77,51 @@ def _to_json_obj(value: Any) -> Any:
     return value
 
 
-def _extract_explain_times_ms(explain_json: Any) -> Tuple[float, Optional[float]]:
+def _aggregate_buffers(node: dict) -> BufferStats:
+    """Recursively walk the plan tree and sum up buffer counters."""
+    shared_hit = node.get("Shared Hit Blocks", 0)
+    shared_read = node.get("Shared Read Blocks", 0)
+    shared_dirtied = node.get("Shared Dirtied Blocks", 0)
+    shared_written = node.get("Shared Written Blocks", 0)
+    temp_read = node.get("Temp Read Blocks", 0)
+    temp_written = node.get("Temp Written Blocks", 0)
+
+    for child in node.get("Plans", []):
+        child_buf = _aggregate_buffers(child)
+        shared_hit += child_buf.shared_hit_blocks
+        shared_read += child_buf.shared_read_blocks
+        shared_dirtied += child_buf.shared_dirtied_blocks
+        shared_written += child_buf.shared_written_blocks
+        temp_read += child_buf.temp_read_blocks
+        temp_written += child_buf.temp_written_blocks
+
+    return BufferStats(
+        shared_hit_blocks=shared_hit,
+        shared_read_blocks=shared_read,
+        shared_dirtied_blocks=shared_dirtied,
+        shared_written_blocks=shared_written,
+        temp_read_blocks=temp_read,
+        temp_written_blocks=temp_written,
+    )
+
+
+def _compute_memory_score(buf: BufferStats) -> float:
+    """Compute memory efficiency score (0~1, higher is better)."""
+    total_shared = buf.shared_hit_blocks + buf.shared_read_blocks
+    total_temp = buf.temp_read_blocks + buf.temp_written_blocks
+
+    if total_shared == 0 and total_temp == 0:
+        return 1.0
+
+    hit_ratio = buf.shared_hit_blocks / total_shared if total_shared > 0 else 0.0
+    total_all = total_shared + total_temp
+    temp_ratio = total_temp / total_all if total_all > 0 else 0.0
+
+    return round(0.7 * hit_ratio + 0.3 * (1.0 - temp_ratio), 4)
+
+
+def _extract_explain_data(explain_json: Any) -> Tuple[float, Optional[float], BufferStats]:
+    """Extract timing and buffer stats from EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)."""
     explain_json = _to_json_obj(explain_json)
     if not isinstance(explain_json, list) or not explain_json:
         raise ValueError("Unexpected EXPLAIN JSON: expected a non-empty list")
@@ -72,7 +130,9 @@ def _extract_explain_times_ms(explain_json: Any) -> Tuple[float, Optional[float]
         raise ValueError("Unexpected EXPLAIN JSON: missing 'Execution Time'")
     execution_ms = float(top["Execution Time"])
     planning_ms = float(top["Planning Time"]) if "Planning Time" in top else None
-    return execution_ms, planning_ms
+    plan = top.get("Plan", {})
+    buffers = _aggregate_buffers(plan)
+    return execution_ms, planning_ms, buffers
 
 
 def _benchmark_one_query(
@@ -80,9 +140,10 @@ def _benchmark_one_query(
     sql: str,
     repeats: int,
     statement_timeout_ms: Optional[int],
-) -> Tuple[list[float], list[float], Optional[str]]:
+) -> Tuple[list[float], list[float], Optional[BufferStats], Optional[str]]:
     run_execution_ms: list[float] = []
     run_planning_ms: list[float] = []
+    last_buffer_stats: Optional[BufferStats] = None
 
     try:
         with connect(dsn) as conn:
@@ -91,19 +152,21 @@ def _benchmark_one_query(
                 if statement_timeout_ms is not None:
                     cur.execute(f"SET statement_timeout = {int(statement_timeout_ms)};")
 
-                explain_sql = f"EXPLAIN (ANALYZE, FORMAT JSON) {sql}"
+                # KEY CHANGE: added BUFFERS
+                explain_sql = f"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) {sql}"
                 for _ in range(repeats):
                     cur.execute(explain_sql)
                     row = cur.fetchone()
                     if row is None:
                         raise RuntimeError("EXPLAIN returned no rows")
-                    execution_ms, planning_ms = _extract_explain_times_ms(row[0])
+                    execution_ms, planning_ms, buffers = _extract_explain_data(row[0])
                     run_execution_ms.append(execution_ms)
                     if planning_ms is not None:
                         run_planning_ms.append(planning_ms)
-        return run_execution_ms, run_planning_ms, None
+                    last_buffer_stats = buffers
+        return run_execution_ms, run_planning_ms, last_buffer_stats, None
     except Exception as exc:
-        return run_execution_ms, run_planning_ms, str(exc)
+        return run_execution_ms, run_planning_ms, last_buffer_stats, str(exc)
 
 
 def _write_json(path: Path, payload: Any) -> None:
@@ -121,6 +184,7 @@ def _write_csv(path: Path, results: list[QueryBaselineResult]) -> None:
         "success",
         "median_execution_time_ms",
         "median_planning_time_ms",
+        "memory_score",
         "error_message",
         *[f"run_{i}_execution_time_ms" for i in range(1, max_runs + 1)],
         *[f"run_{i}_planning_time_ms" for i in range(1, max_runs + 1)],
@@ -137,6 +201,7 @@ def _write_csv(path: Path, results: list[QueryBaselineResult]) -> None:
                 "success": r.success,
                 "median_execution_time_ms": r.median_execution_time_ms,
                 "median_planning_time_ms": r.median_planning_time_ms,
+                "memory_score": r.memory_score,
                 "error_message": r.error_message,
             }
             for i in range(max_runs):
@@ -217,17 +282,26 @@ def main() -> int:
                     run_planning_time_ms=[],
                     median_planning_time_ms=None,
                     error_message="dry_run",
+                    buffer_stats=None,
+                    memory_score=None,
                 )
             )
             continue
 
-        run_execution_ms, run_planning_ms, err = _benchmark_one_query(
+        run_execution_ms, run_planning_ms, last_buffer_stats, err = _benchmark_one_query(
             dsn=args.dsn,
             sql=sql,
             repeats=args.repeat,
             statement_timeout_ms=args.statement_timeout_ms,
         )
         success = err is None and len(run_execution_ms) == args.repeat
+
+        buf_dict: Optional[dict[str, int]] = None
+        mem_score: Optional[float] = None
+        if last_buffer_stats is not None:
+            buf_dict = asdict(last_buffer_stats)
+            mem_score = _compute_memory_score(last_buffer_stats)
+
         results.append(
             QueryBaselineResult(
                 query_id=query_id,
@@ -239,6 +313,8 @@ def main() -> int:
                 run_planning_time_ms=run_planning_ms,
                 median_planning_time_ms=median(run_planning_ms) if run_planning_ms else None,
                 error_message=err,
+                buffer_stats=buf_dict,
+                memory_score=mem_score,
             )
         )
 
