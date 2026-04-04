@@ -129,7 +129,7 @@ class PostgresExplainBenchmarkLayer:
             return _BenchmarkRunResult(run_execution_ms, run_planning_ms, last_buffer_stats, str(exc))
 
     @staticmethod
-    def _extract_explain_data(self, explain_json: Any) -> tuple[tuple[float, Optional[float]], BufferStats]:
+    def _extract_explain_data(explain_json: Any) -> tuple[tuple[float, Optional[float]], BufferStats]:
         """Extract timing and buffer stats from EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)."""
         if isinstance(explain_json, str):
             explain_json = json.loads(explain_json)
