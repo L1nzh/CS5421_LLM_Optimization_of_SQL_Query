@@ -22,9 +22,10 @@ dev = [
 [project.scripts]
 llm-sql-validator = "cli.validator_cli:main"
 llm-sql-pipeline = "cli.optimization_pipeline_cli:main"
+llm-sql-experiment = "cli.experiment_cli:main"
 
 [tool.setuptools.packages.find]
-include = ["cli", "config", "db", "execution", "models", "utils", "validator", "pipeline", "layer1", "layer2", "layer3", "layer4", "layer5", "layer6", "layer7", "layer8"]
+include = ["cli", "config", "db", "execution", "models", "utils", "validator", "pipeline", "layer1", "layer2", "layer3", "layer4", "layer5", "layer6", "layer7", "layer8", "experiments"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
