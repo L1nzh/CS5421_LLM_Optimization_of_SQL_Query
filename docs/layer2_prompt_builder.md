@@ -27,9 +27,10 @@ The default implementation currently accepts the following ids:
 
 - `P0_BASE`
 - `P1_ENGINE`
-- `P4_RULES`
+- `P2_SCHEMA_MIN`
+- `P3_SCHEMA_STATS`
 
-These are lightweight defaults aligned with the broader architecture.
+These are the active prompt strategies aligned with the broader architecture and current experiment pipeline.
 
 ### Reasoning mode
 
@@ -84,7 +85,6 @@ Important fields:
 
 ## TODO
 
-- Fully unify this implementation with the prompt variants already present in `benchmark/postgres/ablation_experiments.py`
-- Add explicit support for `P2_SCHEMA_MIN` and `P3_SCHEMA_STATS` as first-class reusable prompt builder paths
-- Add richer engine-specific prompt templates
+- Fully unify this implementation with the remaining prompt-variant logic in `benchmark/postgres/ablation_experiments.py`
 - Add prompt artifact serialization for reproducibility
+- Revisit a future `P4` only if it becomes a meaningfully distinct rule-guided strategy

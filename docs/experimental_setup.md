@@ -8,7 +8,6 @@ Each experiment is defined as a combination of three components:
 - **P1: ENGINE** — Includes database engine-specific information
 - **P2: SCHEMA_MIN** — Includes minimal schema information
 - **P3: SCHEMA_STATS** — Includes schema statistics (e.g., indexes, distributions)
-- **P4: RULES** — Includes explicit optimization rules and heuristics
 
 ### **2. Reasoning Strategy (R)**
 

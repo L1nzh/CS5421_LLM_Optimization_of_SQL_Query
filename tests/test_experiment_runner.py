@@ -18,9 +18,9 @@ def test_sample_queries_is_deterministic() -> None:
 def test_default_gpt5_combos_cover_all_prompt_reasoning_model_combinations() -> None:
     combos = QueryExperimentRunner.default_gpt5_combos()
 
-    assert len(combos) == 45
+    assert len(combos) == 36
     assert ExperimentCombo(prompt_strategy="P0", reasoning_strategy="R0", model="gpt-5") in combos
-    assert ExperimentCombo(prompt_strategy="P4", reasoning_strategy="R2", model="gpt-5-nano") in combos
+    assert ExperimentCombo(prompt_strategy="P3", reasoning_strategy="R2", model="gpt-5-nano") in combos
 
 
 def test_combo_summary_prioritizes_valid_selected_candidates() -> None:

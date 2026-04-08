@@ -191,15 +191,11 @@ class QueryExperimentRunner:
 
     @staticmethod
     def default_gpt5_combos() -> list[ExperimentCombo]:
-        # prompt_strategies = ["P0", "P1", "P2", "P3", "P4"]
-        prompt_strategies = ["P0"]
-        # reasoning_strategies = ["R0", "R1", "R2"]
-        reasoning_strategies = ["R0"]
-        # models = ["gpt-5", "gpt-5-mini", "gpt-5-nano"]
-        models = ["gpt-5-mini"]
+        prompt_strategies = ["P0", "P1", "P2", "P3"]
+        reasoning_strategies = ["R0", "R1", "R2"]
+        models = ["gpt-5", "gpt-5-mini", "gpt-5-nano"]
         return [
-            ExperimentCombo(prompt_strategy=
-                            prompt, reasoning_strategy=reasoning, model=model)
+            ExperimentCombo(prompt_strategy=prompt, reasoning_strategy=reasoning, model=model)
             for prompt in prompt_strategies
             for reasoning in reasoning_strategies
             for model in models
@@ -207,7 +203,7 @@ class QueryExperimentRunner:
 
     @staticmethod
     def default_gpt54_combos() -> list[ExperimentCombo]:
-        prompt_strategies = ["P0", "P1", "P2", "P3", "P4"]
+        prompt_strategies = ["P0", "P1", "P2", "P3"]
         reasoning_strategies = ["R0", "R1", "R2"]
         models = ["gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"]
         return [

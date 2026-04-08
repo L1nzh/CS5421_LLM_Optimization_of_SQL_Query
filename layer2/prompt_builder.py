@@ -381,14 +381,6 @@ class DefaultPromptBuilderLayer:
             "2. Use only standard PostgreSQL syntax. Do not use query hints (e.g., pg_hint_plan).",
             "3. Output the optimized query strictly inside <SQL>...</SQL> tags.",
         ]
-        rewrite_strategies = [
-            "Apply the following rewrite strategies where applicable:",
-            "1. Predicate Pushdown: Push WHERE conditions as deep into subqueries or CTEs as logically possible to reduce the intermediate working set early.",
-            "2. Join Simplification: Eliminate redundant joins if the joined table's columns are not selected AND the join is guaranteed to be 1:1 based on the provided Primary/Foreign Keys.",
-            "3. Subquery Decorrelation: Convert correlated subqueries to JOINs or LATERAL joins to enable Hash or Merge joins instead of Nested Loops.",
-            "4. Anti-Join Optimization: Convert `NOT IN` subqueries to `NOT EXISTS` to avoid NULL-handling performance traps and enable Postgres Hash Anti Joins.",
-            "5. Aggregate Consolidation: Convert scalar aggregate subqueries in SELECT lists to Window Functions to avoid multiple passes over the same data."
-        ]
         if prompt_strategy == "P0_BASE":
             return header + rules
         if prompt_strategy == "P1_ENGINE":
@@ -397,8 +389,6 @@ class DefaultPromptBuilderLayer:
             return header + engine_features + rules
         if prompt_strategy == "P3_SCHEMA_STATS":
             return header + engine_features + rules
-        if prompt_strategy == "P4_RULES":
-            return header + engine_features + rewrite_strategies + rules
         return header + [
             "Use only syntax supported by the target engine.",
         ]
@@ -413,7 +403,7 @@ class DefaultPromptBuilderLayer:
     ) -> str:
         """Build the context block injected into the prompt.
 
-        For strategies that need a rendered schema (P2_SCHEMA_MIN, P4_RULES),
+        For strategies that need a rendered schema (P2_SCHEMA_MIN),
         the raw DDL in ``workload_item.schema_text`` is parsed and rendered in
         compact ``- table(col1, col2, …)`` form, filtered to only the tables
         referenced by the query.
@@ -425,7 +415,7 @@ class DefaultPromptBuilderLayer:
         lines: list[str] = []
         schema_text: Optional[str] = workload_item.schema_text
 
-        if schema_text and prompt_strategy in ("P2_SCHEMA_MIN", "P3_SCHEMA_STATS", "P4_RULES"):
+        if schema_text and prompt_strategy in ("P2_SCHEMA_MIN", "P3_SCHEMA_STATS"):
             create_table_map = _read_schema_create_table_map(schema_text)
             if create_table_map:
                 tables = _extract_tables_from_sql(raw_query, set(create_table_map.keys()))

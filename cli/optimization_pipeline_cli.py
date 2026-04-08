@@ -17,7 +17,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--schema-file", default=None, help="Optional file containing schema context.")
     parser.add_argument("--index-text", default=None, help="Optional index context text.")
     parser.add_argument("--index-file", default=None, help="Optional file containing index context.")
-    parser.add_argument("--prompt-strategy", default="P1_ENGINE", help="Prompt strategy id, for example P0_BASE or P4_RULES.")
+    parser.add_argument("--prompt-strategy", default="P1_ENGINE", help="Prompt strategy id, for example P0_BASE, P1_ENGINE, P2_SCHEMA_MIN, or P3_SCHEMA_STATS.")
     parser.add_argument("--reasoning-mode", default="DIRECT", help="Reasoning mode, for example DIRECT, COT_DELIM, or TWO_PASS.")
     parser.add_argument("--model", default="doubao-seed-2-0-pro-260215", help="LLM model id.")
     parser.add_argument("--candidate-count", type=int, default=3, help="Number of LLM candidates to generate per query.")

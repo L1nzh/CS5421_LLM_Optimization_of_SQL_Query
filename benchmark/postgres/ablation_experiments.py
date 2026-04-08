@@ -532,40 +532,11 @@ def _prompt_with_schema_rich(sql: str, schema_block: str, extra: str) -> str:
     {sql}
     """
 
-
-def _prompt_rules_header() -> str:
-    return f"""You are a PostgreSQL 16 SQL optimizer.
-Rewrite the SQL to be semantically equivalent but potentially faster on PostgreSQL.
-
-You may use any PostgreSQL 16 feature, including:
-- CTEs with MATERIALIZED / NOT MATERIALIZED
-- LATERAL joins
-- Window functions with FILTER
-- Partial indexes (reference only; do not CREATE)
-- DISTINCT ON
-
-Apply the following rewrite strategies where applicable:
-1. Decorrelate correlated subqueries: replace with JOIN or LATERAL.
-2. Push predicates inside CTEs or subqueries to reduce row counts early.
-3. Replace NOT IN / NOT EXISTS with LEFT JOIN ... WHERE key IS NULL when safe.
-4. Add NOT MATERIALIZED to CTEs that are referenced only once.
-5. Convert scalar aggregate subqueries in SELECT lists to window functions.
-6. Avoid re-scanning large tables: consolidate multiple passes into one.
-
-Rules:
-- Output ONLY the rewritten SQL inside <SQL>...</SQL> tags.
-- Preserve the result set exactly: same columns, same ordering, same LIMIT.
-- Do NOT include explanations, markdown, or any text outside the <SQL> tags.
-- Use only standard PostgreSQL syntax (no hints).
-"""
-
-
 PROMPT_VARIANTS: dict[str, Callable[[str, str, list[str], str], str]] = {
     "P0_BASE": lambda sql, schema, tables, dsn: _prompt_base(sql),
     "P1_ENGINE": lambda sql, schema, tables, dsn: _prompt_engine(sql),
     "P2_SCHEMA_MIN": lambda sql, schema, tables, dsn: _prompt_with_schema(sql, schema, _prompt_engine_header()),
     "P3_SCHEMA_STATS": lambda sql, schema, tables, dsn: _prompt_with_schema_rich(sql, schema, _prompt_engine_header()),
-    "P4_RULES": lambda sql, schema, tables, dsn: _prompt_with_schema(sql, schema, _prompt_rules_header()),
 }
 
 
@@ -581,9 +552,6 @@ def _build_prompt_variant(
         return PROMPT_VARIANTS[variant_id](sql, schema_block, tables, dsn)
     if variant_id == "P3_SCHEMA_STATS":
         schema_block = _render_schema_rich(tables, dsn, create_table_map)
-        return PROMPT_VARIANTS[variant_id](sql, schema_block, tables, dsn)
-    if variant_id == "P4_RULES":
-        schema_block = _render_schema_min(tables, create_table_map)
         return PROMPT_VARIANTS[variant_id](sql, schema_block, tables, dsn)
     return PROMPT_VARIANTS[variant_id](sql, "", tables, dsn)
 
@@ -931,7 +899,7 @@ def main() -> int:
     parser.add_argument("--statement-timeout-ms", type=int, default=300_000, help="statement_timeout in ms for each run.")
     parser.add_argument("--schema-sql", default="benchmark/postgres/tpcds/schema.sql", help="Schema DDL path for schema extraction.")
     parser.add_argument("--mode", choices=["prompt", "reasoning", "all"], default="all", help="Which experiment group to run.")
-    parser.add_argument("--prompt-variants", default="P0_BASE,P1_ENGINE,P2_SCHEMA_MIN,P3_SCHEMA_STATS,P4_RULES", help="Comma-separated prompt variant ids.")
+    parser.add_argument("--prompt-variants", default="P0_BASE,P1_ENGINE,P2_SCHEMA_MIN,P3_SCHEMA_STATS", help="Comma-separated prompt variant ids.")
     parser.add_argument("--reasoning-variants", default="R0_DIRECT,R1_COT_DELIM,R2_TWO_PASS", help="Comma-separated reasoning variant ids.")
     parser.add_argument("--artifacts-dir", default="benchmark/results/ablation_artifacts", help="Artifacts directory.")
     parser.add_argument("--output-json", default="benchmark/results/postgres_tpcds_sf1_q9_pro_ablations.json", help="Output JSON path.")
