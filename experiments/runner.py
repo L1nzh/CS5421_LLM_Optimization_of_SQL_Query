@@ -193,7 +193,10 @@ class QueryExperimentRunner:
     def default_gpt5_combos() -> list[ExperimentCombo]:
         prompt_strategies = ["P0", "P1", "P2", "P3"]
         reasoning_strategies = ["R0", "R1", "R2"]
-        models = ["gpt-5", "gpt-5-mini", "gpt-5-nano"]
+        models = ["gpt-5-2025-08-07", "gpt-5-mini", "gpt-5-nano"]
+        # prompt_strategies = ["P0"]
+        # reasoning_strategies = ["R0"]
+        # models = ["gpt-5-2025-08-07"]
         return [
             ExperimentCombo(prompt_strategy=prompt, reasoning_strategy=reasoning, model=model)
             for prompt in prompt_strategies
