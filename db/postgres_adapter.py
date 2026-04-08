@@ -16,10 +16,12 @@ class PostgresAdapter(DatabaseAdapter):
     _cursor_counter = count()
 
     def __init__(self, dsn: str):
+        self._dsn = dsn
         self._connection = connect(dsn, row_factory=tuple_row)
 
     def execute_query(self, query: str) -> QueryExecutionResult:
         started = perf_counter()
+        self._ensure_connection()
         try:
             with self._connection.cursor() as cursor:
                 cursor.execute(query)
@@ -35,6 +37,7 @@ class PostgresAdapter(DatabaseAdapter):
                 error_message=None,
             )
         except Exception as exc:  # pragma: no cover - adapter integration surface
+            self._rollback_connection()
             execution_time_ms = (perf_counter() - started) * 1000
             return QueryExecutionResult(
                 query=query,
@@ -49,12 +52,14 @@ class PostgresAdapter(DatabaseAdapter):
         self._connection.close()
 
     def stream_query(self, query: str, batch_size: int = 10_000) -> QueryStreamResult:
+        self._ensure_connection()
         cursor = self._connection.cursor(name=f"validator_stream_{next(self._cursor_counter)}")
         try:
             cursor.execute(query)
             columns = [desc.name for desc in cursor.description] if cursor.description else []
         except Exception as exc:  # pragma: no cover - adapter integration surface
             cursor.close()
+            self._rollback_connection()
             return QueryStreamResult(
                 query=query,
                 success=False,
@@ -81,3 +86,17 @@ class PostgresAdapter(DatabaseAdapter):
             rows=row_iterator(),
             close=cursor.close,
         )
+
+    def _ensure_connection(self) -> None:
+        if getattr(self._connection, "closed", False) or getattr(self._connection, "broken", False):
+            self._connection = connect(self._dsn, row_factory=tuple_row)
+
+    def _rollback_connection(self) -> None:
+        try:
+            if not getattr(self._connection, "closed", False):
+                self._connection.rollback()
+        except Exception:
+            try:
+                self._connection.close()
+            except Exception:
+                pass
