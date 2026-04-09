@@ -190,13 +190,14 @@ class QueryExperimentRunner:
         return ExperimentPhaseConfig(phase_name="phase2_fullset_combo", sample_size=30, benchmark_repeats=5, random_seed=20260408)
 
     @staticmethod
-    def default_gpt5_combos() -> list[ExperimentCombo]:
-        prompt_strategies = ["P0", "P1", "P2", "P3"]
-        reasoning_strategies = ["R0", "R1", "R2"]
-        models = ["gpt-5-2025-08-07", "gpt-5-mini", "gpt-5-nano"]
-        # prompt_strategies = ["P0"]
-        # reasoning_strategies = ["R0"]
-        # models = ["gpt-5-2025-08-07"]
+    def default_combos() -> list[ExperimentCombo]:
+        # prompt_strategies = ["P0", "P1", "P2", "P3"]
+        # reasoning_strategies = ["R0", "R1", "R2"]
+        # models = ["gpt-5-2025-08-07", "gpt-5-mini", "gpt-5-nano"]
+        prompt_strategies = ["P0"]
+        reasoning_strategies = ["R0"]
+        # models = ["MiniMax-M2.5"]
+        models = ["MiniMax-M2.5-highspeed"]
         return [
             ExperimentCombo(prompt_strategy=prompt, reasoning_strategy=reasoning, model=model)
             for prompt in prompt_strategies

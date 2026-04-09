@@ -1,5 +1,7 @@
 ## **Experimental Setup**
 
+See also: `docs/report_methodology_outline.md` for a report-facing outline of what to cover in the Methodology section.
+
 Each experiment is defined as a combination of three components:
 
 ### **1. Prompt Strategy (P)**

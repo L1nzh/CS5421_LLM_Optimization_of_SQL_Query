@@ -66,7 +66,7 @@ def main() -> int:
         random_seed=args.phase2_seed,
     )
 
-    combos = QueryExperimentRunner.default_gpt5_combos()
+    combos = QueryExperimentRunner.default_combos()
     if args.include_gpt54:
         combos.extend(QueryExperimentRunner.default_gpt54_combos())
 

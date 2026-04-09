@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from .models import ARK_BASE_URL, DOUBAO_MODELS
+from .models import ARK_BASE_URL, DOUBAO_MODELS, MINIMAX_BASE_URL, MINIMAX_MODELS
 
 
 def _build_openai_client(**kwargs):
@@ -18,6 +18,15 @@ def get_model_client(model: str):
             raise RuntimeError("ARK_API_KEY is not set in environment variables")
         return _build_openai_client(
             base_url=ARK_BASE_URL,
+            api_key=api_key,
+        )
+
+    if model in MINIMAX_MODELS:
+        api_key = os.getenv("MINIMAX_API_KEY")
+        if not api_key:
+            raise RuntimeError("MINIMAX_API_KEY is not set in environment variables")
+        return _build_openai_client(
+            base_url=MINIMAX_BASE_URL,
             api_key=api_key,
         )
 

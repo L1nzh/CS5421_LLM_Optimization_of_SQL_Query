@@ -6,6 +6,7 @@ from pipeline.models import GeneratedCandidate, NormalizedCandidate
 
 _FENCE_RE = re.compile(r"```(?:sql)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
 _SQL_TAG_RE = re.compile(r"<SQL>\s*([\s\S]*?)\s*</SQL>", re.IGNORECASE)
+_THINK_TAG_RE = re.compile(r"<think>\s*[\s\S]*?\s*</think>", re.IGNORECASE)
 _EXPLAIN_PREFIX_RE = re.compile(r"^\s*EXPLAIN\s*(?:\([^)]*\))?\s*", re.IGNORECASE)
 
 
@@ -35,9 +36,11 @@ class DefaultCandidateNormalizationLayer:
 
     def _extract_sql(self, text: str) -> str:
         candidate = text.strip()
-        tag_match = _SQL_TAG_RE.search(candidate)
-        if tag_match:
-            candidate = tag_match.group(1).strip()
+        sql_tag_matches = [match.strip() for match in _SQL_TAG_RE.findall(candidate) if match.strip()]
+        if sql_tag_matches:
+            candidate = sql_tag_matches[-1]
+        else:
+            candidate = _THINK_TAG_RE.sub("", candidate).strip()
 
         fence_match = _FENCE_RE.search(candidate)
         if fence_match:
