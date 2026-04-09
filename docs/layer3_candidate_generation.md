@@ -14,14 +14,14 @@ This layer should not perform SQL extraction, validation, or benchmarking. Its j
 
 ## Responsibilities
 
-- Call the configured model through the Responses API
+- Call the configured model through the appropriate provider API
 - Support multiple candidate generations for the same prompt package
 - Support one-pass and two-pass generation
 - Return raw model output without SQL execution or correctness assumptions
 
 ## Model Routing
 
-The default implementation now supports two model providers.
+The default implementation now supports four provider paths.
 
 ### Ark models
 
@@ -47,6 +47,39 @@ Current exported model constants include:
 - `gpt-5.4`
 - `gpt-5.4-mini`
 - `gpt-5.4-nano`
+
+### MiniMax models
+
+Configured through:
+
+- `MINIMAX_API_KEY`
+
+Current exported model constants include:
+
+- `MiniMax-M2`
+- `MiniMax-M2.1`
+- `MiniMax-M2.1-highspeed`
+- `MiniMax-M2.5`
+- `MiniMax-M2.5-highspeed`
+
+These models use OpenAI-compatible `chat.completions`.
+
+### Local OpenAI-compatible models
+
+Configured through:
+
+- optional `LOCAL_LLM_BASE_URL`
+- optional `LOCAL_LLM_API_KEY`
+
+Default base URL:
+
+- `http://100.64.0.45:11434/v1`
+
+Current exported model constants include:
+
+- `VladimirGav/gemma4-26b-16GB-VRAM:latest`
+
+These models also use OpenAI-compatible `chat.completions`, which makes them suitable for locally hosted inference servers that expose a `/v1/chat/completions` endpoint.
 
 ## Input
 
@@ -78,6 +111,8 @@ Each candidate contains:
   - first generates a plan
   - then injects that plan into the second-stage prompt
   - then generates final candidate SQL text
+- OpenAI GPT and Ark models use the Responses API path
+- MiniMax and local OpenAI-compatible models use the Chat Completions path
 
 ## Design Notes
 

@@ -23,6 +23,7 @@ from experiments.models import (
 from experiments.prompt_builder import ExperimentPromptBuilderLayer
 from experiments.validation import CachedValidationGateLayer
 from layer1.workload_preparation import FileOrStringWorkloadPreparationLayer
+from layer3.models import LOCAL_GEMMA4_26B
 from layer3.generation_layer import DefaultCandidateGenerationLayer
 from layer4.candidate_normalizer import DefaultCandidateNormalizationLayer
 from layer7.ranking import SpeedupRankingLayer
@@ -206,6 +207,18 @@ class QueryExperimentRunner:
         ]
 
     @staticmethod
+    def default_gpt5_combos() -> list[ExperimentCombo]:
+        prompt_strategies = ["P0", "P1", "P2", "P3"]
+        reasoning_strategies = ["R0", "R1", "R2"]
+        models = ["gpt-5", "gpt-5-mini", "gpt-5-nano"]
+        return [
+            ExperimentCombo(prompt_strategy=prompt, reasoning_strategy=reasoning, model=model)
+            for prompt in prompt_strategies
+            for reasoning in reasoning_strategies
+            for model in models
+        ]
+
+    @staticmethod
     def default_gpt54_combos() -> list[ExperimentCombo]:
         prompt_strategies = ["P0", "P1", "P2", "P3"]
         reasoning_strategies = ["R0", "R1", "R2"]
@@ -215,6 +228,16 @@ class QueryExperimentRunner:
             for prompt in prompt_strategies
             for reasoning in reasoning_strategies
             for model in models
+        ]
+
+    @staticmethod
+    def default_local_combos(local_model: str = LOCAL_GEMMA4_26B) -> list[ExperimentCombo]:
+        prompt_strategies = ["P0", "P1", "P2", "P3"]
+        reasoning_strategies = ["R0", "R1", "R2"]
+        return [
+            ExperimentCombo(prompt_strategy=prompt, reasoning_strategy=reasoning, model=local_model)
+            for prompt in prompt_strategies
+            for reasoning in reasoning_strategies
         ]
 
     @staticmethod

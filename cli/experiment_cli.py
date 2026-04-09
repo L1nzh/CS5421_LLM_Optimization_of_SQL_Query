@@ -30,6 +30,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--stream-batch-size", type=int, default=10_000, help="Stream batch size for hash validation.")
     parser.add_argument("--trim-strings", action="store_true", help="Trim strings during validation normalization.")
     parser.add_argument("--include-gpt54", action="store_true", help="Include gpt-5.4 family combos in phase 1 search.")
+    parser.add_argument("--include-local", action="store_true", help="Include the local OpenAI-compatible chat-completions model in phase 1 search.")
+    parser.add_argument(
+        "--local-model",
+        default="VladimirGav/gemma4-26b-16GB-VRAM:latest",
+        help="Local model id to use when --include-local is set.",
+    )
     return parser
 
 
@@ -69,6 +75,8 @@ def main() -> int:
     combos = QueryExperimentRunner.default_combos()
     if args.include_gpt54:
         combos.extend(QueryExperimentRunner.default_gpt54_combos())
+    if args.include_local:
+        combos.extend(QueryExperimentRunner.default_local_combos(args.local_model))
 
     payload: dict[str, object] = {}
     phase1_result = None

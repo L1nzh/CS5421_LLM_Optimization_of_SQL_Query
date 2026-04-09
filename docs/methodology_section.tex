@@ -1,0 +1,176 @@
+% Methodology section for the report.
+% Assumptions:
+% 1. The main report preamble loads `graphicx`.
+% 2. The main report preamble loads `booktabs` if the table style below is used.
+% 3. If the report is compiled from a different working directory, adjust the
+%    figure paths below accordingly.
+
+\section{Methodology}
+\label{sec:methodology}
+
+\subsection{Research Objective and Problem Setting}
+
+This work studies \textbf{LLM-based SQL query optimization} as a correctness-constrained research problem. The objective is not simply to generate alternative SQL text, but to determine whether a large language model can produce query rewrites that are simultaneously \textbf{semantically equivalent}, \textbf{executable on the target engine}, and \textbf{beneficial in execution performance}. The system is therefore designed as a research evaluation framework rather than a standalone SQL rewriting tool.
+
+Each experiment instance is defined by three components: a raw SQL query, optional schema and index context, and a configuration tuple $(P, R, M)$, where $P$ denotes the prompt strategy, $R$ the reasoning strategy, and $M$ the model. For every such instance, the pipeline produces one or more candidate SQL rewrites, validates them against the baseline query, benchmarks valid candidates, and returns a ranked recommendation when at least one valid candidate exists. This formulation follows a \textit{correctness-first} principle: performance is considered only after semantic equivalence has been established.
+
+\subsection{System Design}
+
+The proposed system is implemented as an \textbf{eight-layer modular pipeline}. Each layer has a single responsibility and can be tested or replaced independently, which supports both controlled experimentation and maintainability. Figure~\ref{fig:method-pipeline} illustrates the overall workflow, and Table~\ref{tab:method-pipeline} summarizes the role of each layer.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.98\linewidth]{figures/pipeline.png}
+\caption{Layered pipeline for LLM-based SQL optimization and evaluation.}
+\label{fig:method-pipeline}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\caption{Responsibilities of the eight pipeline layers.}
+\label{tab:method-pipeline}
+\begin{tabular}{|c|l|l|l|}
+\hline
+\textbf{Layer} & \textbf{Name} & \textbf{Input} & \textbf{Responsibility} \\
+\hline
+1 & Workload Preparation & Raw SQL / files & Normalize workload items and attach schema context \\
+\hline
+2 & Prompt Builder & Workload items & Construct prompts according to prompt/reasoning strategy \\
+\hline
+3 & Candidate Generation & Prompt package & Invoke the selected LLM and generate SQL candidates \\
+\hline
+4 & Candidate Normalization & Raw model output & Extract executable SQL from model responses \\
+\hline
+5 & Validation Gate & SQL candidates & Enforce semantic equivalence with the baseline query \\
+\hline
+6 & Benchmark & Valid candidates & Measure runtime and resource behavior \\
+\hline
+7 & Ranking & Validation + benchmark outputs & Rank candidates and select the best rewrite \\
+\hline
+8 & Analysis & Pipeline outputs & Produce structured artifacts for reporting and comparison \\
+\hline
+\end{tabular}
+\end{table}
+
+This layered design separates generation from correctness checking, correctness from performance evaluation, and performance evaluation from final ranking. As a result, any improvement in one stage can be studied without conflating it with the behavior of the others.
+
+\subsection{Dataset, Search Space, and Experimental Design}
+
+\subsubsection{Dataset and Workload}
+
+The evaluation uses the \textbf{TPC-DS} benchmark on PostgreSQL with the SF=1 dataset. TPC-DS is a widely used analytical benchmark and is well suited to this study because it contains complex decision-support queries with multi-table joins, nested subqueries, aggregation, filtering, and ordering. Such characteristics make it appropriate for evaluating both semantic preservation and execution behavior under realistic warehouse-style workloads.
+
+The testing pool contains \textbf{99 SQL queries}. These queries are used as the source workload for both the configuration search and the larger-scale validation runs. The benchmark environment is summarized in Table~\ref{tab:method-workload}.
+
+\begin{table}[htbp]
+\centering
+\caption{Workload and system configuration used in the methodology.}
+\label{tab:method-workload}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Aspect} & \textbf{Configuration} \\
+\hline
+Benchmark workload & TPC-DS \\
+\hline
+Dataset scale & SF=1 \\
+\hline
+Target DBMS & PostgreSQL 16 \\
+\hline
+Total query pool & 99 analytical queries \\
+\hline
+Phase~1 sample size & 10 randomly sampled queries \\
+\hline
+Phase~2 sample size & 30 randomly sampled queries \\
+\hline
+Candidates generated per run & 3 \\
+\hline
+Execution trials per query & 5 \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Prompt, Reasoning, and Model Search Space}
+
+To evaluate the behavior of LLM-based SQL optimization systematically, the methodology varies three independent experimental factors: prompt strategy ($P$), reasoning strategy ($R$), and model choice ($M$). Prompt strategy controls how much task context is given to the model, reasoning strategy controls how the model is guided to produce its output, and model choice captures the effect of model capability under the same task setting.
+
+\begin{table}[htbp]
+\centering
+\caption{Experimental search space.}
+\label{tab:method-search-space}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Variable} & \textbf{Values} & \textbf{Role in the experiment} \\
+\hline
+Prompt strategy ($P$) & $P0$, $P1$, $P2$, $P3$ & Controls contextual information provided to the LLM \\
+\hline
+Reasoning strategy ($R$) & $R0$, $R1$, $R2$ & Controls generation and reasoning behavior \\
+\hline
+Model ($M$) & GPT-5 family variants & Controls generation capability under the same task setting \\
+\hline
+\end{tabular}
+\end{table}
+
+The prompt variants are designed as progressively richer sources of information. $P0$ is a zero-shot baseline that requests an equivalent but potentially faster rewrite with minimal extra context. $P1$ adds engine-specific constraints for PostgreSQL. $P2$ supplies minimal schema information, such as relevant table structure. $P3$ extends this with richer structural and statistical context, including information such as approximate row counts, in order to support more cost-aware rewriting.
+
+The reasoning variants capture three generation behaviors. $R0$ is a direct single-pass generation strategy. $R1$ uses a structured chain-of-thought style with explicit output delimiters such as \texttt{<SQL>...</SQL>} so that the final SQL can be extracted reliably. $R2$ uses a two-pass design in which the model first generates an optimization plan and then converts that plan into executable SQL. Together, these variants allow the methodology to study not only whether LLMs can optimize SQL, but also which prompt and reasoning choices are most effective.
+
+\subsection{Candidate Generation and Normalization}
+
+For each input query $q$, the generation layer produces three candidate rewrites:
+\[
+\{q'_1, q'_2, q'_3\}.
+\]
+This multiplicity is necessary because LLM output is stochastic and a single generation may be syntactically malformed, semantically unsafe, or simply unhelpful from a performance perspective.
+
+The raw model output is not assumed to be directly executable. It may contain explanatory text, markdown formatting, reasoning traces, or multiple candidate fragments. A dedicated normalization stage therefore converts the raw output into an executable SQL candidate by removing formatting artifacts, extracting SQL enclosed in \texttt{<SQL>} tags when present, trimming non-SQL prefixes, and retaining a single executable statement. Candidates that fail normalization are preserved with their associated error metadata so that failure modes remain observable during later analysis, but they are excluded from subsequent evaluation as executable rewrites.
+
+\subsection{Semantic Correctness Validation}
+
+Semantic correctness is enforced as a hard gate before any performance claim is accepted. A candidate query $q'$ is considered valid only if it returns the same result set as the original query $q$. The validation procedure is straightforward: the baseline query is executed to obtain $R(q)$, the candidate query is executed to obtain $R(q')$, and the two result sets are compared under a selected equivalence strategy.
+
+The system supports several comparison strategies. \textit{Exact ordered} requires both row values and row order to match exactly. \textit{Exact unordered} ignores row order but still requires value equality. \textit{Multiset} comparison preserves row multiplicity and is therefore appropriate when duplicate rows are semantically meaningful. For large analytical outputs, the system additionally supports a \textit{hash-based} strategy that compares normalized result fingerprints instead of fully materialized in-memory result sets.
+
+For the hash-based strategy, semantic equivalence is checked through normalized result fingerprints:
+\begin{equation}
+H(q) = \mathrm{Hash}(\mathrm{Normalize}(R(q))).
+\end{equation}
+A candidate is treated as equivalent when
+\begin{equation}
+H(q) = H(q') \;\land\; |R(q)| = |R(q')|,
+\end{equation}
+where $|R(q)|$ denotes the result cardinality. This approach provides a scalable validation path for large TPC-DS outputs while avoiding full result-set materialization in memory.
+
+To make validation robust, the comparison stage normalizes floating-point values under a configurable tolerance, handles \texttt{NULL} consistently, verifies column structure before row comparison, and isolates candidate failures so that one invalid candidate does not terminate the whole pipeline. As a result, semantic validation operates as a strict but practical safety barrier between generation and benchmarking.
+
+\subsection{Performance Evaluation Protocol}
+
+Only semantically valid candidates proceed to performance evaluation. Benchmarking is performed on PostgreSQL using \texttt{EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)}. Each candidate and its corresponding baseline query are executed five times, and median timing is used to reduce the effect of transient runtime noise.
+
+The primary time-based metric is candidate speedup:
+\begin{equation}
+\mathrm{speedup}(q') = \frac{T_{\mathrm{baseline}}}{T_{\mathrm{candidate}}},
+\end{equation}
+where $T_{\mathrm{baseline}}$ and $T_{\mathrm{candidate}}$ are the median execution times of the baseline and candidate queries, respectively. A value greater than 1 indicates improvement.
+
+In addition to timing, the benchmark layer records PostgreSQL buffer and temporary I/O statistics, including shared-buffer hits, shared-buffer reads, and temporary reads/writes. These values are combined into a derived memory-efficiency metric:
+\begin{equation}
+\mathrm{memory\_score} = 0.7 \cdot \mathrm{cache\_efficiency} + 0.3 \cdot (1 - \mathrm{temp\_usage}),
+\end{equation}
+where cache efficiency reflects the shared-buffer hit ratio and temp usage captures spill behavior. This metric allows the methodology to evaluate not only whether a rewrite is faster, but also whether it is more resource efficient.
+
+The benchmark stage is fault tolerant. Queries that fail execution are recorded as unsuccessful, a statement timeout prevents pathological cases from stalling the pipeline, and remaining candidates continue to be processed even if some executions fail.
+
+\subsection{Candidate Ranking and Final Selection}
+
+After validation and benchmarking, candidate rewrites are ranked using a composite score that combines runtime improvement and memory efficiency:
+\begin{equation}
+\mathrm{score}(q') = 0.7 \cdot \mathrm{speedup}(q') + 0.3 \cdot \mathrm{memory\_score}(q').
+\end{equation}
+
+Only candidates that pass semantic validation and normalization are eligible for ranking. Invalid candidates are excluded, candidates missing memory metrics fall back to speedup-only scoring, and candidates with benchmark failure receive score $0$. Candidates are then ordered by the availability of a valid score, by descending score value, and finally by candidate identifier for deterministic tie-breaking. The highest-ranked candidate is selected as the final optimized query. This design preserves the correctness-first principle while still enabling comparative performance-based selection among multiple valid rewrites.
+
+\subsection{Reproducibility and Artifact Collection}
+
+The methodology is designed to support reproducible analysis. For each experiment run, the system persists structured artifacts including configuration metadata, prompts, raw model outputs, normalized SQL, validation results, benchmark results, and ranked candidate summaries. This ensures that conclusions in the later findings and performance sections can be traced back to concrete experimental outputs without rerunning the full pipeline.
+
+Overall, the methodology combines controlled prompt/model experimentation, strict semantic validation, repeated benchmark execution, and deterministic ranking in a single framework. This makes it possible to study not only whether LLMs can optimize SQL, but also under which conditions they do so reliably and effectively.

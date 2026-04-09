@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from experiments.models import ExperimentCombo
 from experiments.runner import QueryExperimentRunner
+from layer3.models import LOCAL_GEMMA4_26B
 from pipeline.models import RankedCandidate
 
 
@@ -21,6 +22,14 @@ def test_default_gpt5_combos_cover_all_prompt_reasoning_model_combinations() -> 
     assert len(combos) == 36
     assert ExperimentCombo(prompt_strategy="P0", reasoning_strategy="R0", model="gpt-5") in combos
     assert ExperimentCombo(prompt_strategy="P3", reasoning_strategy="R2", model="gpt-5-nano") in combos
+
+
+def test_default_local_combos_cover_all_prompt_reasoning_combinations() -> None:
+    combos = QueryExperimentRunner.default_local_combos()
+
+    assert len(combos) == 12
+    assert ExperimentCombo(prompt_strategy="P0", reasoning_strategy="R0", model=LOCAL_GEMMA4_26B) in combos
+    assert ExperimentCombo(prompt_strategy="P3", reasoning_strategy="R2", model=LOCAL_GEMMA4_26B) in combos
 
 
 def test_combo_summary_prioritizes_valid_selected_candidates() -> None:

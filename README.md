@@ -42,7 +42,7 @@ Layer-by-layer docs:
 
 ### 支持的模型
 
-当前已内置 Ark 与 OpenAI 两类模型常量（见 `layer3/models.py`）：
+当前已内置 Ark、OpenAI、MiniMax 与本地 OpenAI-compatible 四类模型常量（见 `layer3/models.py`）：
 
 - `doubao-seed-2-0-pro-260215`
 - `doubao-seed-2-0-lite-260215`
@@ -50,6 +50,9 @@ Layer-by-layer docs:
 - `gpt-5.4`
 - `gpt-5.4-mini`
 - `gpt-5.4-nano`
+- `MiniMax-M2.5`
+- `MiniMax-M2.5-highspeed`
+- `VladimirGav/gemma4-26b-16GB-VRAM:latest`
 
 ### 环境准备
 
@@ -72,6 +75,13 @@ export ARK_API_KEY="your_api_key_here"
 
 ```bash
 export OPENAI_API_KEY="your_openai_api_key_here"
+```
+
+如果使用本地 OpenAI-compatible 模型，例如 `VladimirGav/gemma4-26b-16GB-VRAM:latest`，可配置：
+
+```bash
+export LOCAL_LLM_BASE_URL="http://100.64.0.45:11434/v1"
+export LOCAL_LLM_API_KEY="local"
 ```
 
 ### Quickstart（3 模型 × 3 个 SQL 任务）
