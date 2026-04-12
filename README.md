@@ -1,155 +1,238 @@
-# CS5421-LLM-Optimization-of-SQL-Query
+# LLM SQL Optimizer Research Pipeline
 
-## Multi-Layer Research Pipeline
+This repository contains a research-oriented pipeline for optimizing SQL queries with Large Language Models (LLMs) and evaluating the optimized queries in a controlled, reproducible way.
 
-仓库现在额外提供一个可组合的 8-layer pipeline，用于把 workload preparation、prompt construction、LLM candidate generation、candidate normalization、validation、benchmark、ranking、analysis 串联起来，同时保持各层可独立替换与测试。
+The project is built around two goals:
 
-主要入口：
+1. Generate candidate SQL rewrites from different prompt, reasoning, and model combinations.
+2. Verify that the rewritten query is semantically correct and compare its performance against the baseline query.
 
-- `pipeline/sql_optimization_pipeline.py`
-- `cli/optimization_pipeline_cli.py`
+The current workflow supports experiment execution, semantic validation, benchmarking, ranking, artifact persistence, and post-hoc analysis for report writing.
 
-当前实现状态：
+## Project Scope
 
-- Layer 1：已实现 `FileOrStringWorkloadPreparationLayer`
-- Layer 2：已实现 `DefaultPromptBuilderLayer`
-- Layer 3：支持 Ark 与 OpenAI GPT 模型的 Responses API 生成逻辑
-- Layer 4：已实现 `DefaultCandidateNormalizationLayer`
-- Layer 5：复用现有 validator 作为 `ValidatorValidationGateLayer`
-- Layer 6：提供 PostgreSQL `EXPLAIN ANALYZE` 实现与 placeholder 实现
-- Layer 7：提供基于 speedup 的默认 ranking
-- Layer 8：当前为 summary placeholder，后续可替换为研究分析模块
+At a high level, the project implements an 8-layer pipeline:
 
-示例：
+1. Workload preparation
+2. Prompt construction
+3. LLM candidate generation
+4. Candidate normalization
+5. Semantic validation
+6. Benchmarking
+7. Ranking
+8. Analysis
 
-```bash
-python -m cli.optimization_pipeline_cli \
-  --raw-query "SELECT * FROM store_sales" \
-  --prompt-strategy P1_ENGINE \
-  --reasoning-mode DIRECT \
-  --candidate-count 3
-```
+This separation is intentional. Each layer is designed to stay independently testable and replaceable, which makes the system easier to debug, benchmark, and extend.
 
-如果提供 `--dsn`，Layer 5 和 Layer 6 会使用真实数据库进行语义验证与 benchmark；如果不提供，则会走 placeholder 路径，仍然返回统一结构的 ranked output。
+Typical use cases in this repository are:
 
-Layer-by-layer docs:
+- run prompt / reasoning / model experiments on a query workload
+- validate optimized SQL against the baseline result set
+- benchmark valid candidates on PostgreSQL
+- rank candidates by performance signals
+- generate analysis summaries and plots for the final report
 
-- `docs/layers_index.md`
+## Core Packages
 
-## Layer 3 — LLM Candidate Generation
+The main code is organized into the following packages:
 
-本仓库当前先实现 Layer 3：给定输入文本（这里用 SQL 优化任务 prompt），调用 LLM 并解析 Responses API 的结构化响应，最终返回模型输出的文本。
+- `layer1` to `layer8`: layer-specific implementations for the end-to-end optimization pipeline
+- `pipeline`: orchestration contracts and pipeline-level models
+- `experiments`: experiment runner, combo handling, persistence, and experiment-specific utilities
+- `validator`: result normalization, comparison strategies, hashing, and validation pipeline
+- `db`: database abstraction layer and PostgreSQL adapter
+- `execution`: query execution helpers
+- `cli`: command-line entrypoints
+- `scripts`: local analysis and plotting utilities
+- `tests`: unit and integration-style tests
 
-### 支持的模型
+## Installation
 
-当前已内置 Ark、OpenAI、MiniMax 与本地 OpenAI-compatible 四类模型常量（见 `layer3/models.py`）：
+The project targets Python 3.10+.
 
-- `doubao-seed-2-0-pro-260215`
-- `doubao-seed-2-0-lite-260215`
-- `doubao-seed-2-0-mini-260215`
-- `gpt-5.4`
-- `gpt-5.4-mini`
-- `gpt-5.4-nano`
-- `MiniMax-M2.5`
-- `MiniMax-M2.5-highspeed`
-- `VladimirGav/gemma4-26b-16GB-VRAM:latest`
-
-### 环境准备
-
-建议使用 Python 3.10+ 并创建虚拟环境：
+Create a virtual environment and install the package:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -U pip
-python -m pip install -r requirements.txt
+./venv/bin/pip install -U pip
+./venv/bin/pip install -e .
 ```
 
-配置火山方舟 API Key（需要你自行在控制台创建并开通对应模型权限）：
+For test tooling:
 
 ```bash
-export ARK_API_KEY="your_api_key_here"
+./venv/bin/pip install -e .[dev]
 ```
 
-如果使用 OpenAI GPT 模型，例如 `gpt-5.4-nano`，配置：
+Core runtime dependencies are defined in [pyproject.toml](/Users/dex/Documents/python-workspace/llm_query_optimizer/pyproject.toml).
+
+## Model Provider Configuration
+
+Layer 3 supports multiple providers behind a shared generation interface.
+
+Supported families in the current codebase include:
+
+- OpenAI GPT models
+- Ark / Doubao models
+- MiniMax models
+- local OpenAI-compatible chat-completions models
+
+Common environment variables:
 
 ```bash
-export OPENAI_API_KEY="your_openai_api_key_here"
-```
-
-如果使用本地 OpenAI-compatible 模型，例如 `VladimirGav/gemma4-26b-16GB-VRAM:latest`，可配置：
-
-```bash
+export OPENAI_API_KEY="your_openai_key"
+export ARK_API_KEY="your_ark_key"
+export MINIMAX_API_KEY="your_minimax_key"
 export LOCAL_LLM_BASE_URL="http://100.64.0.45:11434/v1"
 export LOCAL_LLM_API_KEY="local"
 ```
 
-### Quickstart（3 模型 × 3 个 SQL 任务）
+You only need to set the variables required by the model family you plan to use.
+
+## Running the Experiment
+
+The main entrypoint for the research workflow is the experiment CLI:
 
 ```bash
-python demo/quickstart_layer3.py
+./venv/bin/python -m cli.experiment_cli \
+  --dsn "postgresql://postgres:abcd1234@localhost:5432/tpcds_sf1" \
+  --query-dir "datasets/testing_query" \
+  --schema-file "benchmark/postgres/tpcds/schema.sql" \
+  --artifacts-root "datasets/artifacts" \
+  --phase all \
+  --comparison-strategy hash
 ```
 
-### 作为库使用
+Important arguments:
 
-```python
-from layer3 import DOUBAO_SEED_2_0_PRO_260215, generate_text
+- `--dsn`: PostgreSQL DSN used for validation and benchmarking
+- `--query-dir`: directory containing SQL workload files
+- `--schema-file`: schema context injected into prompts
+- `--artifacts-root`: root directory for persisted experiment outputs
+- `--phase`: `phase1`, `phase2`, or `all`
+- `--comparison-strategy`: validation strategy, including `hash` for large-result workloads
+- `--include-gpt54`: optionally include the GPT-5.4 family in the Phase 1 combo search
+- `--include-local`: optionally include a local OpenAI-compatible model in the Phase 1 combo search
+- `--local-model`: local model id when `--include-local` is enabled
 
-prompt = "Return only optimized SQL.\\nSQL: SELECT * FROM t;"
-out = generate_text(prompt, DOUBAO_SEED_2_0_PRO_260215)
-print(out)
-```
-
-## Layer 2 — Prompt Engineering & Reasoning Engineering（实验框架）
-
-本仓库的 Layer 2 以“可控实验”的形式实现：固定模型与 workload，通过系统化改变 prompt / reasoning 方式，评估对 SQL 可执行性与性能（speedup）的影响。实现入口在 `benchmark/postgres/ablation_experiments.py`，报告生成在 `benchmark/postgres/generate_ablation_report.py`。
-
-### 变体设计
-
-- Prompt Engineering（P0\~P3）：只改变 prompt 信息量与约束
-  - P0\_BASE：基础约束（只输出 SQL、语义等价、PG 语法）
-  - P1\_ENGINE：明确引擎与版本（PostgreSQL 16）+ 禁止非 PG 方言
-  - P2\_SCHEMA\_MIN：注入精简 schema（仅 query 涉及表/列）
-  - P3\_SCHEMA\_STATS：注入 schema + 统计信息（近似行数）
-- Reasoning Engineering（R0\~R2）：只改变推理引导方式
-  - R0\_DIRECT：直接输出最终 SQL
-  - R1\_COT\_DELIM：允许推理，但要求最终 SQL 放在 `<SQL>...</SQL>`，便于抽取执行
-  - R2\_TWO\_PASS：两阶段（先 plan，再 apply plan 输出 SQL）
-
-### 运行（PostgreSQL 本地 benchmark）
-
-前置：
-
-- 需要本地 PostgreSQL（并已导入 TPC-DS SF=1 数据）；详细步骤见 `benchmark/postgres/README.md`
-- 需要配置 Ark Key：
+To inspect the full CLI surface:
 
 ```bash
-export ARK_API_KEY="your_api_key_here"
+./venv/bin/python -m cli.experiment_cli --help
 ```
 
-运行 prompt/reasoning 实验（默认固定 9 条 query：q1,q2,q3,q6,q7,q8,q9,q10,q12，固定 pro 模型）：
+### Experiment Phases
+
+The experiment workflow is split into two phases:
+
+- `phase1`: evaluate combinations of prompt strategy, reasoning strategy, and model on a sampled subset to identify the best-performing combo
+- `phase2`: run the selected best combo on a larger sampled subset and persist the detailed outputs for deeper analysis
+
+The exact setup and sampling rationale are documented in [docs/experimental_setup.md](/Users/dex/Documents/python-workspace/llm_query_optimizer/docs/experimental_setup.md).
+
+## Semantic Validation
+
+The system does not assume that a faster query is acceptable by default. Every generated candidate can be checked against the baseline query through the validation stack.
+
+Supported validation strategies include:
+
+- `exact_ordered`
+- `exact_unordered`
+- `multiset`
+- `hash`
+
+The `hash` strategy is especially useful for large workloads such as TPC-DS because it supports streaming comparison and avoids materializing large result sets fully in memory.
+
+More details are in:
+
+- [docs/validator_design.md](/Users/dex/Documents/python-workspace/llm_query_optimizer/docs/validator_design.md)
+- [docs/validation_flow.md](/Users/dex/Documents/python-workspace/llm_query_optimizer/docs/validation_flow.md)
+
+## Generating Analysis Data
+
+After the experiment has finished, you can generate local analysis outputs from the saved artifacts:
 
 ```bash
-python3 benchmark/postgres/ablation_experiments.py \
-  --dsn "postgresql://bench:bench@localhost:5432/tpcds_sf1" \
-  --baseline-json benchmark/results/postgres_tpcds_sf1_queries10_baseline.json \
-  --mode all \
-  --repeat 1 \
-  --statement-timeout-ms 300000
+./venv/bin/python scripts/analyze_experiment_results.py
 ```
 
-生成 Markdown 报告：
+This script produces structured analysis outputs such as:
+
+- JSON summaries
+- CSV summaries
+- per-query micro-analysis tables
+- macro-level combo comparisons
+
+By default, the outputs are written to:
+
+- `datasets/artifacts/findings_analysis`
+
+## Generating Figures
+
+To generate report-friendly figures from the analysis output:
 
 ```bash
-python3 benchmark/postgres/generate_ablation_report.py \
-  --ablations-json benchmark/results/postgres_tpcds_sf1_q9_pro_ablations_exec.json \
-  --output-md benchmark/postgres/prompt_reasoning_report.md
+./venv/bin/python scripts/plot_experiment_findings.py
 ```
 
-说明：
+By default, the figures are written to:
 
-- 若你已经有 `benchmark/results/ablation_artifacts/`（模型 raw/sql 产物），可用 `--execute-only` 仅重跑 EXPLAIN 计时，避免再次调用模型（示例见 `benchmark/postgres/README.md`）。
-  ```shellscript
-  ```
+- `datasets/artifacts/findings_figures`
 
-postgresql
+These figures are intended to support the report's methodology, performance, and findings sections.
+
+## Data and Artifact Layout
+
+The repository keeps workload inputs and generated outputs under `datasets/`.
+
+Important paths:
+
+- `datasets/testing_query`: workload SQL files used in the experiment
+- `datasets/artifacts/candidate_combo`: Phase 1 outputs for combo exploration
+- `datasets/artifacts/fullset_combo`: Phase 2 outputs for the best combo
+- `datasets/artifacts/findings_analysis`: derived analysis outputs
+- `datasets/artifacts/findings_figures`: generated plots and report figures
+
+In practice, the artifact folders contain run-stamped subdirectories, persisted summaries, and per-query traces that can be reused without rerunning the expensive LLM calls.
+
+## Documentation
+
+Project documentation is stored under `docs/`.
+
+Recommended starting points:
+
+- [docs/llm_arch_proposal.md](/Users/dex/Documents/python-workspace/llm_query_optimizer/docs/llm_arch_proposal.md): overall architecture proposal
+- [docs/layers_index.md](/Users/dex/Documents/python-workspace/llm_query_optimizer/docs/layers_index.md): entrypoint to layer-by-layer documentation
+- [docs/layer1_workload_preparation.md](/Users/dex/Documents/python-workspace/llm_query_optimizer/docs/layer1_workload_preparation.md) to [docs/layer8_analysis.md](/Users/dex/Documents/python-workspace/llm_query_optimizer/docs/layer8_analysis.md): detailed layer design
+- [docs/experimental_setup.md](/Users/dex/Documents/python-workspace/llm_query_optimizer/docs/experimental_setup.md): experiment methodology and run design
+- [docs/report_methodology_outline.md](/Users/dex/Documents/python-workspace/llm_query_optimizer/docs/report_methodology_outline.md): content outline for the report methodology section
+
+## Other Useful CLI Entry Points
+
+Besides the experiment runner, the repository exposes:
+
+```bash
+llm-sql-validator
+llm-sql-pipeline
+llm-sql-experiment
+```
+
+These are defined in [pyproject.toml](/Users/dex/Documents/python-workspace/llm_query_optimizer/pyproject.toml) and map to:
+
+- semantic validation CLI
+- layered SQL optimization pipeline CLI
+- experiment CLI
+
+## Testing
+
+Run the test suite with:
+
+```bash
+./venv/bin/python -m pytest
+```
+
+## Notes
+
+- The project is currently benchmarked primarily on PostgreSQL, but the validation and execution design intentionally uses a database abstraction layer so the system can be extended to other engines later.
+- The repository contains both implementation code and report-generation support code because the experiments are designed to feed directly into the project write-up.

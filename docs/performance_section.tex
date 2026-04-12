@@ -1,8 +1,7 @@
 % Performance evaluation section for the report.
 % Assumptions:
 % 1. The main report preamble loads `graphicx`.
-% 2. The main report preamble loads `float` if `[H]` placement is preferred.
-% 3. If the report is compiled from a different working directory, adjust the
+% 2. If the report is compiled from a different working directory, adjust the
 %    figure paths below accordingly.
 
 \section{Performance Evaluation}
@@ -10,40 +9,29 @@
 
 \subsection{Experimental Set-up}
 
-We evaluate the proposed LLM-based SQL optimization pipeline on the TPC-DS decision-support benchmark using a PostgreSQL back-end populated with the SF=1 dataset. The experimental workload is taken from the 99 benchmark queries stored in the testing set, and each query is executed against the populated PostgreSQL instance to provide both semantic validation and physical performance measurements. Since the goal of the system is not merely to generate alternative SQL text, but to generate semantically equivalent rewrites that improve execution behavior, our evaluation combines correctness checks with runtime-oriented and resource-oriented metrics.
+We evaluate the proposed LLM-based SQL optimization pipeline on the TPC-DS decision-support benchmark using PostgreSQL with the SF=1 dataset. The workload is drawn from the 99 benchmark queries in the testing set. Each query is executed against the populated PostgreSQL instance to support both semantic validation and physical performance measurement. Since the objective is not merely to generate alternative SQL text, but to generate rewrites that preserve semantics while improving execution behavior, the evaluation combines correctness checks with runtime-oriented and resource-oriented metrics.
 
-The evaluation is organized into two phases. In Phase~1, we perform a controlled screening of prompt and reasoning combinations in order to identify the most promising configuration. Ten queries are randomly sampled from the 99-query pool using a fixed seed, and each query is evaluated under all available prompt/reasoning combinations for the selected model. In the collected result set, this produced 12 combinations corresponding to the Cartesian product of four prompt strategies ($P0$--$P3$) and three reasoning strategies ($R0$--$R2$), all instantiated with \texttt{gpt-5-mini}. In Phase~2, the best-performing configuration selected in Phase~1 is applied to a larger random sample of 30 TPC-DS queries. In both phases, the system generates three candidate rewrites per query and benchmarks each query configuration with five execution trials so that timing statistics can be aggregated robustly.
+The evaluation is organized into two phases. In Phase~1, a controlled screening is performed on 10 randomly sampled queries to compare prompt and reasoning combinations. In the collected run, this produced 12 combinations corresponding to four prompt strategies ($P0$--$P3$) and three reasoning strategies ($R0$--$R2$), all instantiated with \texttt{gpt-5-mini}. In Phase~2, the best Phase~1 configuration is applied to a larger sample of 30 TPC-DS queries. In both phases, three candidate rewrites are generated per query and each candidate is benchmarked using five execution trials.
 
-The performance evaluation uses the following metrics. First, semantic validity is enforced through result-set equivalence checking, which acts as a hard gate before any speed claim is accepted. Second, execution performance is measured by the median execution time reported by \texttt{EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)}. Third, candidate speedup is defined as the ratio between the baseline execution time and the candidate execution time; values larger than 1.0 indicate improvement. Fourth, resource efficiency is captured through PostgreSQL buffer statistics, which are converted into a derived memory score based on cache-hit behavior and temporary spill avoidance. Finally, ranking uses a composite score that combines speedup and memory score with weights $0.7$ and $0.3$, respectively. Because the collected results contain several large outliers, we report medians alongside means and interpret medians as the primary summary statistic.
+Semantic validity is enforced before any speed claim is accepted. For valid candidates, execution performance is measured using the median execution time reported by \texttt{EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)}. Candidate speedup is defined as the ratio between baseline and candidate execution time. Resource efficiency is summarized using a derived memory score based on PostgreSQL buffer and temporary I/O behavior. Final ranking uses a composite score with weights $0.7$ for speedup and $0.3$ for memory score. Because the collected results contain several large outliers, medians are treated as the primary summary statistic.
 
 \begin{table}[htbp]
 \centering
 \caption{Summary of the experimental configuration used in the reported runs.}
 \label{tab:exp-setup}
 \begin{tabular}{|l|l|}
-\hline
 \textbf{Aspect} & \textbf{Configuration} \\
 \hline
 Dataset & TPC-DS SF=1 on PostgreSQL \\
-\hline
 Query pool & 99 analytical SQL queries \\
-\hline
 Phase~1 workload & 10 randomly sampled queries \\
-\hline
 Phase~2 workload & 30 randomly sampled queries \\
-\hline
 Candidate count per run & 3 \\
-\hline
 Execution trials per query & 5 \\
-\hline
 Phase~1 search space & $P0$--$P3$ $\times$ $R0$--$R2$ using \texttt{gpt-5-mini} \\
-\hline
 Best configuration selected & \texttt{P3\_\_R0\_\_gpt-5-mini} \\
-\hline
 Correctness metric & semantic equivalence via result-set validation \\
-\hline
 Performance metrics & execution time, planning time, speedup, memory score \\
-\hline
 Ranking score & $0.7 \times$ speedup $+ 0.3 \times$ memory score \\
 \hline
 \end{tabular}
@@ -51,32 +39,27 @@ Ranking score & $0.7 \times$ speedup $+ 0.3 \times$ memory score \\
 
 \subsection{Phase~1: Comparative Screening of Prompt/Reasoning Combinations}
 
-Phase~1 is intended to answer a model-selection question: among the available prompt/reasoning combinations, which configuration provides the strongest balance between correctness and performance? The macro-level comparison is shown in Figure~\ref{fig:phase1-leaderboard}, while Figure~\ref{fig:phase1-heatmap} summarizes the interaction between prompt strategy and reasoning strategy.
+Phase~1 asks which prompt/reasoning combination provides the best balance between correctness and performance. The macro-level comparison is shown in Figure~\ref{fig:phase1-leaderboard}, while Figure~\ref{fig:phase1-heatmap} summarizes the interaction between prompt strategy and reasoning strategy.
 
-At the combination level, the best configuration is \texttt{P3\_\_R0\_\_gpt-5-mini}. This combination achieves a valid selection rate of 90\% and the highest median selected speedup among all screened combinations, at 1.267$\times$. The second-best configuration is \texttt{P2\_\_R1\_\_gpt-5-mini}, which also maintains a 90\% valid selection rate but with a slightly lower median speedup of 1.213$\times$. By contrast, weaker combinations such as \texttt{P1\_\_R0\_\_gpt-5-mini} and \texttt{P1\_\_R1\_\_gpt-5-mini} produce near-parity median speedups (0.996$\times$ and 0.982$\times$, respectively), indicating that engine-aware prompting alone is not sufficient to drive consistent gains.
+At the combination level, the best configuration is \texttt{P3\_\_R0\_\_gpt-5-mini}. It achieves a valid selection rate of 90\% and the highest median selected speedup among all screened combinations, at 1.267$\times$. The next strongest configuration is \texttt{P2\_\_R1\_\_gpt-5-mini}, which maintains the same validity but a slightly lower median speedup of 1.213$\times$. Weaker configurations such as \texttt{P1\_\_R0\_\_gpt-5-mini} and \texttt{P1\_\_R1\_\_gpt-5-mini} remain close to performance parity, suggesting that engine-aware prompting alone is insufficient to drive consistent gains.
 
-At the prompt-strategy level, $P3$ delivers the highest median speedup (1.250$\times$), followed by $P2$ (1.114$\times$). This suggests that richer schema and statistics context helps the model discover more aggressive and more beneficial rewrites. However, the gain does not come without a trade-off: the overall valid selection rate of $P3$ drops to 76.7\%, while $P2$ retains a better balance at 86.7\%. Thus, $P3$ appears to increase optimization power but also increases the risk of invalid or unstable rewrites when paired with less suitable reasoning modes.
+Viewed by prompt strategy, $P3$ yields the highest median speedup (1.250$\times$), followed by $P2$ (1.114$\times$). This suggests that richer schema and statistics context helps the model identify more aggressive and more beneficial rewrites. However, the gain comes with a trade-off: $P3$ has a lower overall valid selection rate (76.7\%) than $P2$ (86.7\%). Thus, richer context appears to increase optimization power, but also increases the chance of invalid or unstable rewrites when combined with less suitable reasoning modes.
 
-At the reasoning-strategy level, $R2$ (two-pass prompting) produces the highest median speedup (1.117$\times$), but its valid selection rate is only 65\%, substantially lower than the 90\% achieved by both $R0$ and $R1$. This result indicates that explicit multi-step reasoning can improve aggressiveness, but it also increases the chance of generating semantically unsafe or operationally brittle rewrites. In contrast, $R0$ and $R1$ are markedly more reliable, with $R0$ ultimately forming the best overall combination when paired with $P3$.
+Viewed by reasoning strategy, $R2$ (two-pass prompting) achieves the highest median speedup (1.117$\times$), but its valid selection rate is only 65\%, substantially below the 90\% achieved by both $R0$ and $R1$. This indicates that explicit multi-step prompting can improve aggressiveness, but also increases the risk of semantically unsafe outputs. In contrast, $R0$ and $R1$ are much more reliable, with $R0$ ultimately forming the best overall combination when paired with $P3$.
 
-Taken together, these results motivate the selection of \texttt{P3\_\_R0\_\_gpt-5-mini} for Phase~2. It preserves the high validity of direct prompting while still benefiting from the richer structural information supplied by the $P3$ schema/statistics prompt.
+Taken together, the Phase~1 results justify the selection of \texttt{P3\_\_R0\_\_gpt-5-mini} for the larger-scale evaluation. It preserves the high validity of direct prompting while benefiting from richer structural context.
 
 \begin{table}[htbp]
 \centering
 \caption{Top Phase~1 combinations ranked by validity first and median selected speedup second.}
 \label{tab:phase1-top-combos}
 \begin{tabular}{|l|c|c|c|c|}
-\hline
 \textbf{Combo} & \textbf{Valid rate} & \textbf{Median speedup} & \textbf{Median memory score} & \textbf{Missing speedup rate} \\
 \hline
 \texttt{P3\_\_R0\_\_gpt-5-mini} & 90.0\% & 1.267 & 0.420 & 10.0\% \\
-\hline
 \texttt{P2\_\_R1\_\_gpt-5-mini} & 90.0\% & 1.213 & 0.417 & 10.0\% \\
-\hline
 \texttt{P0\_\_R0\_\_gpt-5-mini} & 90.0\% & 1.021 & 0.432 & 10.0\% \\
-\hline
 \texttt{P0\_\_R1\_\_gpt-5-mini} & 90.0\% & 1.002 & 0.422 & 0.0\% \\
-\hline
 \texttt{P1\_\_R0\_\_gpt-5-mini} & 90.0\% & 0.996 & 0.425 & 0.0\% \\
 \hline
 \end{tabular}
@@ -84,7 +67,7 @@ Taken together, these results motivate the selection of \texttt{P3\_\_R0\_\_gpt-
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.92\linewidth]{datasets/artifacts/findings_figures/phase1_combo_leaderboard.png}
+\includegraphics[width=0.90\linewidth]{datasets/artifacts/findings_figures/phase1_combo_leaderboard.png}
 \caption{Phase~1 combination leaderboard. Bars report median selected speedup, while the overlaid line reports valid selection rate.}
 \label{fig:phase1-leaderboard}
 \end{figure}
@@ -98,98 +81,58 @@ Taken together, these results motivate the selection of \texttt{P3\_\_R0\_\_gpt-
 
 \subsection{Phase~2: Evaluation of the Best Configuration}
 
-Phase~2 applies the selected configuration, \texttt{P3\_\_R0\_\_gpt-5-mini}, to a larger set of 30 randomly sampled TPC-DS queries. The aggregate result is more mixed than the Phase~1 screening might suggest. Although the system always produces a ranked selection, only 24 of the 30 selected candidates are semantically valid, yielding a valid selection rate of 80\%. Across the valid candidates, the median speedup is only 1.002$\times$, indicating that the typical case is near parity with the baseline rather than a large improvement. The mean speedup is much larger at 5.359$\times$, but this average is heavily inflated by a few extreme wins and therefore is not representative of the central tendency. This gap between mean and median confirms that the performance distribution is heavy-tailed.
+Phase~2 applies the selected configuration, \texttt{P3\_\_R0\_\_gpt-5-mini}, to a larger set of 30 randomly sampled TPC-DS queries. The aggregate picture is mixed. Although the system always produces a ranked selection, only 24 of the 30 selected candidates are semantically valid, yielding a valid selection rate of 80\%. Across the valid candidates, the median speedup is 1.002$\times$, indicating near-parity performance in the typical case rather than broad-based large improvement. The mean speedup is much larger at 5.359$\times$, but this average is inflated by a few extreme wins and therefore is not representative of the central tendency.
 
-The outcome distribution shown in Figure~\ref{fig:phase2-outcomes} makes this pattern explicit. Among the 30 evaluated queries, 5 are strong improvements (speedup $\geq 1.10$), 9 are mild improvements, 3 are near parity, 6 regress, 1 valid candidate lacks a computable speedup due to missing baseline benchmark timing, and 6 selected candidates are invalid. Therefore, while the best Phase~1 combination generalizes reasonably well in terms of producing valid candidates, it does not produce universal runtime gains. Instead, it exhibits selective effectiveness: substantial wins on some queries, modest or neutral impact on many, and clear regressions on a non-trivial subset.
+In outcome terms, five queries show strong improvement, nine show mild improvement, three are near parity, six regress, one valid query lacks a computable speedup because of missing baseline benchmark timing, and six selected candidates are invalid. Hence, the best Phase~1 configuration generalizes only partially: it produces substantial improvements on some queries, but it does not improve the workload uniformly.
 
 \begin{table}[htbp]
 \centering
 \caption{Aggregate Phase~2 results for the selected best configuration \texttt{P3\_\_R0\_\_gpt-5-mini}.}
 \label{tab:phase2-summary}
 \begin{tabular}{|l|c|}
-\hline
 \textbf{Metric} & \textbf{Value} \\
 \hline
 Queries evaluated & 30 \\
-\hline
 Selected candidates & 30 \\
-\hline
 Semantically valid selected candidates & 24 \\
-\hline
 Valid selection rate & 80.0\% \\
-\hline
 Median speedup & 1.002$\times$ \\
-\hline
 Mean speedup & 5.359$\times$ \\
-\hline
 25th percentile speedup & 0.956$\times$ \\
-\hline
 75th percentile speedup & 1.066$\times$ \\
-\hline
 Median memory score & 0.416 \\
-\hline
 Strong improvements ($\geq 1.10\times$) & 5 \\
-\hline
 Mild improvements ($1.00\times$--$1.10\times$) & 9 \\
-\hline
 Near parity ($0.95\times$--$1.00\times$) & 3 \\
-\hline
 Regressions ($< 0.95\times$) & 6 \\
-\hline
 Missing speedup & 1 \\
-\hline
 Invalid selections & 6 \\
 \hline
 \end{tabular}
 \end{table}
 
+\subsection{Why the Best Configuration Helps or Hurts}
+
+The micro-level results show that the best configuration is highly effective on a small number of queries but not uniformly effective across the workload. The strongest improvement occurs on \texttt{query\_81}, which achieves a speedup of 94.66$\times$, followed by \texttt{query\_31} at 7.47$\times$, \texttt{query\_69} at 1.52$\times$, \texttt{query\_54} at 1.32$\times$, and \texttt{query\_83} at 1.28$\times$. At the other end of the spectrum, the worst regression occurs on \texttt{query\_72} (0.493$\times$), followed by \texttt{query\_51} (0.750$\times$) and \texttt{query\_71} (0.783$\times$). This spread indicates that the chosen prompting strategy can discover highly beneficial rewrites when the original query contains a favorable optimization opportunity, but the same strategy can also over-structure queries that are already close to a good physical form.
+
+Figure~\ref{fig:phase2-structural} provides a useful explanation. Strong improvements are most often associated with introducing \texttt{MATERIALIZED} CTEs and reducing subquery count, both of which can simplify repeated computation. By contrast, regressions are more often associated with adding more CTE structure or extra decomposition without sufficient simplification. In other words, additional structure is beneficial only when it meaningfully improves the physical plan.
+
+This interpretation is consistent with the omitted per-query analyses: the gains are concentrated in a limited subset of queries rather than spread evenly across the workload, and the distribution is strongly skewed. The key lesson is therefore not that the selected configuration is universally superior, but that it is effective when the model identifies a genuinely favorable structural rewrite.
+
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.74\linewidth]{datasets/artifacts/findings_figures/phase2_outcome_distribution.png}
-\caption{Distribution of Phase~2 outcomes for the selected best combination.}
+\includegraphics[width=0.72\linewidth]{datasets/artifacts/findings_figures/phase2_outcome_distribution.png}
+\caption{Distribution of Phase~2 outcomes for the selected best configuration.}
 \label{fig:phase2-outcomes}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.98\linewidth]{datasets/artifacts/findings_figures/phase2_query_speedup.png}
-\caption{Per-query speedup distribution in Phase~2. The dashed line at 1.0 indicates performance parity with the baseline.}
-\label{fig:phase2-query-speedup}
-\end{figure}
-
-\subsection{Analysis of Why the Best Combination Succeeds or Fails}
-
-The micro-level results reveal that the best configuration is highly effective on a small number of queries but not uniformly effective across the workload. The strongest improvement occurs on \texttt{query\_81}, which achieves a speedup of 94.66$\times$, followed by \texttt{query\_31} at 7.47$\times$, \texttt{query\_69} at 1.52$\times$, \texttt{query\_54} at 1.32$\times$, and \texttt{query\_83} at 1.28$\times$. These large wins explain the inflated mean speedup reported earlier. At the other end of the spectrum, the worst regression occurs on \texttt{query\_72} (0.493$\times$), followed by \texttt{query\_51} (0.750$\times$) and \texttt{query\_71} (0.783$\times$). This spread suggests that the chosen prompting strategy can discover highly beneficial rewrites when the original query contains obvious optimization opportunities, but that the same strategy can also over-structure or over-constrain queries that were already close to a good physical form.
-
-The structural-change analysis provides a plausible explanation for this behavior. Figure~\ref{fig:phase2-structural} compares the rewrite patterns associated with strong improvements and regressions. Strong improvements are most commonly associated with introducing \texttt{MATERIALIZED} CTEs and reducing subquery count. This is consistent with the intuition that some TPC-DS queries benefit when repeated sub-expressions are explicitly materialized or when nested expressions are simplified. By contrast, regressions are most often associated with adding more CTE structure and introducing extra CTE layers without corresponding simplification. This suggests that gratuitous decomposition---even when semantically valid---can lead PostgreSQL to choose a less efficient plan.
-
-This finding is also visible in the speedup-memory relationship shown in Figure~\ref{fig:phase2-speedup-memory}. Some of the strongest wins preserve or improve memory behavior, but not all structurally complex rewrites do so. In particular, several regressions combine modest or poor speedup with only moderate memory scores, indicating that additional query structure does not automatically translate into better resource efficiency. Similarly, Figure~\ref{fig:phase2-runtime-buckets} suggests that larger baseline runtime does not guarantee larger benefit: while some expensive baseline queries admit dramatic improvements, others remain difficult to optimize and may even regress.
-
-Overall, these results suggest that the selected best combination is \emph{conditionally effective}. It performs well when the model identifies a beneficial structural simplification, targeted materialization opportunity, or redundant subquery pattern. It performs less well when it introduces additional query scaffolding without sufficiently improving the execution plan. This explains why the same configuration can produce both substantial improvements and meaningful regressions across the Phase~2 workload.
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.78\linewidth]{datasets/artifacts/findings_figures/phase2_speedup_vs_memory.png}
-\caption{Relationship between speedup and memory score in Phase~2. Each point corresponds to one selected candidate.}
-\label{fig:phase2-speedup-memory}
-\end{figure}
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.74\linewidth]{datasets/artifacts/findings_figures/phase2_speedup_by_runtime_bucket.png}
-\caption{Speedup as a function of baseline runtime bucket. The heavy-tailed distribution shows that very large gains are concentrated in a few queries.}
-\label{fig:phase2-runtime-buckets}
-\end{figure}
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.84\linewidth]{datasets/artifacts/findings_figures/phase2_structural_changes.png}
+\includegraphics[width=0.82\linewidth]{datasets/artifacts/findings_figures/phase2_structural_changes.png}
 \caption{Most common structural rewrite patterns for strong improvements and regressions in Phase~2.}
 \label{fig:phase2-structural}
 \end{figure}
 
-\subsection{Threats to Interpretation and Data Quality}
+\subsection{Interpretation}
 
-Finally, the analysis also exposes several evaluation caveats that should be stated explicitly. First, a small number of results have missing speedup values because the baseline benchmark timing is absent even though a selected candidate exists. In the collected Phase~2 data this affects one selected query directly, and in the broader trace-level summary there are five selected rows with missing speedup information. Second, six selected Phase~2 candidates are invalid, which highlights that even the best screened combination still requires a strict semantic validation gate. Third, because the speedup distribution is extremely skewed, arithmetic means can overstate the apparent average improvement. For this reason, medians and outcome buckets provide a more reliable description of typical behavior.
-
-In summary, the empirical evaluation shows that the proposed pipeline can indeed produce meaningful performance gains on a subset of TPC-DS queries, and that richer prompt context (\texttt{P3}) coupled with direct generation (\texttt{R0}) is the strongest configuration among those tested. At the same time, the results also show that optimization benefits are not uniform across the workload, that some valid rewrites still regress, and that the best practical system design must combine LLM generation with strict validation and careful performance-based selection.
+Overall, the empirical results show that the proposed pipeline can improve performance for a subset of TPC-DS queries, and that richer prompt context with direct generation is the strongest tested configuration. At the same time, the median Phase~2 improvement is small, several valid rewrites still regress, and some selected candidates remain invalid. These results reinforce the need for strict semantic validation and cautious performance-based selection when applying LLMs to SQL optimization.

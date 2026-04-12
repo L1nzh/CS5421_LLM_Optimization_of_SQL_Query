@@ -1,8 +1,7 @@
 % Methodology section for the report.
 % Assumptions:
 % 1. The main report preamble loads `graphicx`.
-% 2. The main report preamble loads `booktabs` if the table style below is used.
-% 3. If the report is compiled from a different working directory, adjust the
+% 2. If the report is compiled from a different working directory, adjust the
 %    figure paths below accordingly.
 
 \section{Methodology}
@@ -30,23 +29,15 @@ The proposed system is implemented as an \textbf{eight-layer modular pipeline}. 
 \caption{Responsibilities of the eight pipeline layers.}
 \label{tab:method-pipeline}
 \begin{tabular}{|c|l|l|l|}
-\hline
 \textbf{Layer} & \textbf{Name} & \textbf{Input} & \textbf{Responsibility} \\
 \hline
 1 & Workload Preparation & Raw SQL / files & Normalize workload items and attach schema context \\
-\hline
 2 & Prompt Builder & Workload items & Construct prompts according to prompt/reasoning strategy \\
-\hline
 3 & Candidate Generation & Prompt package & Invoke the selected LLM and generate SQL candidates \\
-\hline
 4 & Candidate Normalization & Raw model output & Extract executable SQL from model responses \\
-\hline
 5 & Validation Gate & SQL candidates & Enforce semantic equivalence with the baseline query \\
-\hline
 6 & Benchmark & Valid candidates & Measure runtime and resource behavior \\
-\hline
 7 & Ranking & Validation + benchmark outputs & Rank candidates and select the best rewrite \\
-\hline
 8 & Analysis & Pipeline outputs & Produce structured artifacts for reporting and comparison \\
 \hline
 \end{tabular}
@@ -67,23 +58,15 @@ The testing pool contains \textbf{99 SQL queries}. These queries are used as the
 \caption{Workload and system configuration used in the methodology.}
 \label{tab:method-workload}
 \begin{tabular}{|l|l|}
-\hline
 \textbf{Aspect} & \textbf{Configuration} \\
 \hline
 Benchmark workload & TPC-DS \\
-\hline
 Dataset scale & SF=1 \\
-\hline
 Target DBMS & PostgreSQL 16 \\
-\hline
 Total query pool & 99 analytical queries \\
-\hline
 Phase~1 sample size & 10 randomly sampled queries \\
-\hline
 Phase~2 sample size & 30 randomly sampled queries \\
-\hline
 Candidates generated per run & 3 \\
-\hline
 Execution trials per query & 5 \\
 \hline
 \end{tabular}
@@ -98,13 +81,10 @@ To evaluate the behavior of LLM-based SQL optimization systematically, the metho
 \caption{Experimental search space.}
 \label{tab:method-search-space}
 \begin{tabular}{|l|l|l|}
-\hline
 \textbf{Variable} & \textbf{Values} & \textbf{Role in the experiment} \\
 \hline
 Prompt strategy ($P$) & $P0$, $P1$, $P2$, $P3$ & Controls contextual information provided to the LLM \\
-\hline
 Reasoning strategy ($R$) & $R0$, $R1$, $R2$ & Controls generation and reasoning behavior \\
-\hline
 Model ($M$) & GPT-5 family variants & Controls generation capability under the same task setting \\
 \hline
 \end{tabular}
