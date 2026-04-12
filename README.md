@@ -206,7 +206,6 @@ Recommended starting points:
 - [docs/layers_index.md](/Users/dex/Documents/python-workspace/llm_query_optimizer/docs/layers_index.md): entrypoint to layer-by-layer documentation
 - [docs/layer1_workload_preparation.md](/Users/dex/Documents/python-workspace/llm_query_optimizer/docs/layer1_workload_preparation.md) to [docs/layer8_analysis.md](/Users/dex/Documents/python-workspace/llm_query_optimizer/docs/layer8_analysis.md): detailed layer design
 - [docs/experimental_setup.md](/Users/dex/Documents/python-workspace/llm_query_optimizer/docs/experimental_setup.md): experiment methodology and run design
-- [docs/report_methodology_outline.md](/Users/dex/Documents/python-workspace/llm_query_optimizer/docs/report_methodology_outline.md): content outline for the report methodology section
 
 ## Other Useful CLI Entry Points
 
